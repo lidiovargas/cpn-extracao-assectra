@@ -7,8 +7,8 @@ import { extrairDadosColaboradores } from './services/scraperService.js';
 // O nome deve ser EXATAMENTE como aparece no dropdown do site
 const empresasParaExtrair = [
   //   'FJ CONSTRUÇÕES', // falha
-  'ENGEMIX CONCRETO', // falha
-  //   'Rile', // falha
+  'RILE CONSTRUÇÕES ELETRICAS EIRELI', // falha
+  //   'ENGEMIX CONCRETO', // 100% |
   // 'SONDOSOLO', // 100% | planilhado
   //   'CONCRE - TEST', // 100% | planilhado
   //   'MULTIPAV TERRAPLENAGEM', //100% | planilhado

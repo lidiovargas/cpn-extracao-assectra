@@ -92,8 +92,14 @@ export async function extrairDadosColaboradores(browser, page, empresasParaExtra
       const nomeColaborador = await links[i].evaluate((el) => el.innerText.trim());
       console.log(`Processando colaborador ${i + 1}/${totalCount}: ${nomeColaborador}`);
 
-      // Clica diretamente no elemento do índice atual para evitar "stale elements".
-      await links[i].click();
+      // --- Lógica de clique robusta ---
+      const linkToClick = links[i];
+      // 1. Rola o elemento para o centro da tela para garantir que ele esteja visível e não obstruído.
+      await linkToClick.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      // 2. Uma pequena pausa para garantir que a interface tenha tempo de se estabilizar após a rolagem.
+      await new Promise((r) => setTimeout(r, 200));
+      // 3. Executa o clique.
+      await linkToClick.click();
 
       try {
         const modalContentSelector = 'input[ng-model="Colaborador.Nome"]';
@@ -198,7 +204,7 @@ export async function extrairDadosColaboradores(browser, page, empresasParaExtra
           await page.waitForSelector(empreiteiroSelector, { visible: true, timeout: 20000 });
           await page.select(empreiteiroSelector, valorEmpresa);
 
-          const filterButtonSelector = 'button[ng-click="Filtrar()"]';
+          const filterButtonSelector = 'button[ng-click="Pesquisar()"]';
           // ESPERA ROBUSTA: Aguarda o botão de filtro não apenas ser visível, mas também estar habilitado (não desativado).
           // Aumentamos o timeout aqui porque a recuperação de erro é um caso excepcional.
           await page.waitForFunction(
