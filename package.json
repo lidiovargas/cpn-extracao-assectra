@@ -1,0 +1,31 @@
+{
+  "name": "extracao-assectra",
+  "version": "1.0.0",
+  "description": "Projeto para extrair dados do site Assectra com Node.js, Puppeteer, Babel e Docker.",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "babel src -d dist",
+    "start": "node dist/index.js",
+    "dev": "babel-node src/index.js"
+  },
+  "keywords": [
+    "puppeteer",
+    "web-scraping",
+    "nodejs",
+    "babel",
+    "docker"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^16.0.3",
+    "puppeteer": "^19.7.2",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.21.0",
+    "@babel/core": "^7.21.0",
+    "@babel/node": "^7.20.7",
+    "@babel/preset-env": "^7.21.0"
+  }
+}
