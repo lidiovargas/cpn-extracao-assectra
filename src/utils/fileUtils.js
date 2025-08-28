@@ -62,16 +62,22 @@ export function salvarComoExcel(nomeEmpresa, dados) {
   }
 
   // --- Lógica para deixar o cabeçalho em negrito ---
-  // Pega o intervalo de células da planilha (ex: A1:F10)
-  const range = xlsx.utils.decode_range(worksheet['!ref']);
-  // Itera sobre a primeira linha (cabeçalho)
-  for (let colNum = range.s.c; colNum <= range.e.c; colNum++) {
-    // Constrói o endereço da célula (A1, B1, C1...)
-    const address = xlsx.utils.encode_cell({ r: range.s.r, c: colNum });
-    const cell = worksheet[address];
-    // Adiciona o estilo de negrito à célula do cabeçalho
-    if (cell) {
-      cell.s = { font: { bold: true } };
+  if (worksheet['!ref']) {
+    // Garante que a planilha não está vazia
+    const range = xlsx.utils.decode_range(worksheet['!ref']);
+    const firstRowIndex = range.s.r; // O índice da primeira linha (geralmente 0)
+
+    // Itera sobre todas as colunas da primeira linha
+    for (let colIndex = range.s.c; colIndex <= range.e.c; ++colIndex) {
+      const address = xlsx.utils.encode_cell({ r: firstRowIndex, c: colIndex });
+      const cell = worksheet[address];
+
+      // Aplica o estilo de forma segura, sem sobrescrever outros estilos existentes
+      if (cell) {
+        if (!cell.s) cell.s = {}; // Cria o objeto de estilo se não existir
+        if (!cell.s.font) cell.s.font = {}; // Cria o objeto de fonte se não existir
+        cell.s.font.bold = true;
+      }
     }
   }
 

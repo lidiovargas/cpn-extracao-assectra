@@ -17,6 +17,7 @@ export async function extrairDadosColaboradores(browser, page, empresasParaExtra
   fs.rmSync(debugDir, { recursive: true, force: true });
   // Recria o diretório. O 'recursive: true' garante que a pasta 'output' seja criada se necessário.
   fs.mkdirSync(debugDir, { recursive: true });
+  const errorLogPath = path.join(debugDir, 'errors.log');
 
   for (const nomeEmpresa of empresasParaExtrair) {
     console.log(`\n--- Iniciando extração para a empresa: ${nomeEmpresa} ---`);
@@ -45,6 +46,11 @@ export async function extrairDadosColaboradores(browser, page, empresasParaExtra
       valorEmpresa = await valorEmpresaHandle.jsonValue();
     } catch (e) {
       valorEmpresa = null; // A empresa não foi encontrada antes do timeout
+      const logMessage = `[${new Date().toISOString()}] Timeout ao procurar a empresa "${nomeEmpresa}" no dropdown.\nErro: ${
+        e.stack
+      }\n\n`;
+      fs.appendFileSync(errorLogPath, logMessage);
+      console.error(`Erro de timeout ao procurar a empresa. Detalhes em ${errorLogPath}`);
     }
 
     if (!valorEmpresa) {
@@ -154,6 +160,12 @@ export async function extrairDadosColaboradores(browser, page, empresasParaExtra
         // para evitar que ele intercepte o próximo clique.
         await page.waitForSelector('md-backdrop', { hidden: true });
 
+        // ESPERA ADICIONAL: Aguarda a rede ficar ociosa. Isso é um forte sinal
+        // de que as animações e chamadas de API de fechamento do modal terminaram.
+        await page.waitForNetworkIdle({ idleTime: 500, timeout: 7000 }).catch(() => {
+          console.log('A rede não ficou ociosa, mas o script continuará.');
+        });
+
         // NOVA CORREÇÃO: Espera por um possível spinner de carregamento desaparecer.
         // A aplicação pode ficar ocupada por um instante após fechar o modal.
         await page.waitForSelector('md-progress-circular', { hidden: true, timeout: 5000 }).catch(() => {});
@@ -165,16 +177,65 @@ export async function extrairDadosColaboradores(browser, page, empresasParaExtra
           body.removeAttribute('style');
         });
       } catch (error) {
-        console.warn(`Ocorreu um erro ao processar o colaborador "${nomeColaborador}". Pulando...`);
+        const logMessage = `[${new Date().toISOString()}] Erro na empresa "${nomeEmpresa}" ao processar o colaborador "${nomeColaborador}".\nErro: ${
+          error.stack
+        }\n\n`;
+        fs.appendFileSync(errorLogPath, logMessage);
+
+        console.warn(
+          `Ocorreu um erro ao processar o colaborador "${nomeColaborador}". Pulando... (Detalhes em ${errorLogPath})`
+        );
         console.error(error);
         // Se um modal falhar, tentamos recarregar a página para recuperar o estado
+        console.log('Recarregando a página para tentar recuperar o estado...');
         await page.reload({ waitUntil: 'networkidle2' });
+
+        // APÓS RECARREGAR, É CRUCIAL REAPLICAR O FILTRO DA EMPRESA!
+        // Sem isso, a página volta para a lista padrão e o loop falha.
+        try {
+          console.log(`Reaplicando filtro para a empresa: ${nomeEmpresa}...`);
+          const empreiteiroSelector = 'select[ng-model="FiltrosEmpreiteiro_id"]';
+          await page.waitForSelector(empreiteiroSelector, { visible: true, timeout: 20000 });
+          await page.select(empreiteiroSelector, valorEmpresa);
+
+          const filterButtonSelector = 'button[ng-click="Filtrar()"]';
+          // ESPERA ROBUSTA: Aguarda o botão de filtro não apenas ser visível, mas também estar habilitado (não desativado).
+          // Aumentamos o timeout aqui porque a recuperação de erro é um caso excepcional.
+          await page.waitForFunction(
+            (selector) => {
+              const button = document.querySelector(selector);
+              return button && !button.disabled;
+            },
+            { timeout: 20000 },
+            filterButtonSelector
+          );
+
+          await page.click(filterButtonSelector);
+
+          // Aguarda a tabela ser recarregada com os dados corretos
+          console.log('Aguardando tabela de colaboradores ser atualizada...');
+          await page
+            .waitForSelector('md-progress-circular', { hidden: true, timeout: 20000 })
+            .catch(() => {});
+          await page.waitForSelector(tableSelector, { visible: true, timeout: 20000 });
+        } catch (recoveryError) {
+          const recoveryLogMessage = `[${new Date().toISOString()}] FALHA CRÍTICA na empresa "${nomeEmpresa}" ao tentar recuperar o estado após um erro.\nErro: ${
+            recoveryError.stack
+          }\n\n`;
+          fs.appendFileSync(errorLogPath, recoveryLogMessage);
+          console.error(
+            'Falha crítica ao tentar recuperar o estado da página. Abortando extração para esta empresa.',
+            recoveryError
+          );
+          break; // Aborta o loop 'for(;;)' para esta empresa e segue para a próxima.
+        }
+
         continue;
       }
     }
 
-    console.log(`\n--- Dados Finais para ${nomeEmpresa} ---`);
-    console.log(JSON.stringify(todosOsDados, null, 2));
+    // console.log(`\n--- Dados Finais para ${nomeEmpresa} ---`);
+    // console.log(JSON.stringify(todosOsDados, null, 2));
     salvarDadosJSON(nomeEmpresa, todosOsDados);
     salvarComoExcel(nomeEmpresa, todosOsDados);
   }

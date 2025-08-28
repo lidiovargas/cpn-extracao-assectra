@@ -6,18 +6,17 @@ import { extrairDadosColaboradores } from './services/scraperService.js';
 // Array com os nomes das empresas que você deseja extrair os dados
 // O nome deve ser EXATAMENTE como aparece no dropdown do site
 const empresasParaExtrair = [
-  //   'SONDOSOLO',
-  // 'ENGEMIX CONCRETO'
-  //   'FJ CONSTRUÇÕES',
-  //   'ENGEMIX CONCRETO',
-  //   'CONCRE - TEST',
-  //   'MULTIPAV TERRAPLENAGEM',
-  //   'Rile',
-  //   'GUILHERME DA SILVA GONGRA DE OLIVEIRA',
-  //   'CONCRELONGO',
-  'BG TOPOGRAFIA',
-  'BV SERRALHERIA',
-  'TRANSPESSIN',
+  //   'FJ CONSTRUÇÕES', // falha
+  'ENGEMIX CONCRETO', // falha
+  //   'Rile', // falha
+  // 'SONDOSOLO', // 100% | planilhado
+  //   'CONCRE - TEST', // 100% | planilhado
+  //   'MULTIPAV TERRAPLENAGEM', //100% | planilhado
+  //   'GUILHERME DA SILVA GONGRA DE OLIVEIRA', // 100% | planilhado
+  //   'CONCRELONGO', // 100% | plnailhado
+  //   'BG TOPOGRAFIA', // 100% | planilhado
+  //   'BV SERRALHERIA', // 100% | planilhado
+  //   'TRANSPESSIN', // 100% | planilhado
 ];
 
 /**
