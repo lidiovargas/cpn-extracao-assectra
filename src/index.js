@@ -1,28 +1,36 @@
 // Carrega as variáveis de ambiente do arquivo .env
 import 'dotenv/config';
-import puppeteer from 'puppeteer';
-import { extrairDadosColaboradores } from './services/scraperService.js';
-
-// Array com os nomes das empresas que você deseja extrair os dados
-// O nome deve ser EXATAMENTE como aparece no dropdown do site
-const empresasParaExtrair = [
-  //   'FJ CONSTRUÇÕES', // falha
-  'RILE CONSTRUÇÕES ELETRICAS EIRELI', // falha
-  //   'ENGEMIX CONCRETO', // 100% |
-  // 'SONDOSOLO', // 100% | planilhado
-  //   'CONCRE - TEST', // 100% | planilhado
-  //   'MULTIPAV TERRAPLENAGEM', //100% | planilhado
-  //   'GUILHERME DA SILVA GONGRA DE OLIVEIRA', // 100% | planilhado
-  //   'CONCRELONGO', // 100% | plnailhado
-  //   'BG TOPOGRAFIA', // 100% | planilhado
-  //   'BV SERRALHERIA', // 100% | planilhado
-  //   'TRANSPESSIN', // 100% | planilhado
-];
+import path from 'path';
+import puppeteer from 'puppeteer-core';
+import { extrairDadosColaboradores } from './services/employeeProfileService.js';
+import { baixarDocumentosColaboradores } from './services/employeeDocumentService.js';
+import { login } from './auth/login.js';
+import { empresasParaExtrair } from './config/companies.js';
 
 /**
  * Função principal que executa o processo de web scraping.
  */
 async function main() {
+  // --- ROTEAMENTO DE TAREFA ---
+  const command = process.argv[2]; // Pega o argumento completo, ex: "employees:profiles"
+  if (!command || !command.includes(':')) {
+    console.error('ERRO: Nenhuma tarefa especificada.');
+    console.error('Uso: node src/index.js <entidade>:<tarefa>');
+    console.error('Exemplos: employees:profiles, employees:documents');
+    process.exit(1);
+  }
+  const [entity, task] = command.split(':');
+  const validEntities = ['employees', 'companies'];
+  const validTasks = ['profiles', 'documents'];
+
+  if (!validEntities.includes(entity) || !validTasks.includes(task)) {
+    console.error(`ERRO: Tarefa ou entidade inválida: "${command}".`);
+    console.error(`  Entidades válidas: ${validEntities.join(', ')}`);
+    console.error(`  Tarefas válidas: ${validTasks.join(', ')}`);
+    process.exit(1);
+  }
+  console.log(`Executando a tarefa: ${task}`);
+
   // --- VERIFICAÇÃO DE VARIÁVEIS DE AMBIENTE ---
   if (!process.env.WEBSITE_USER || !process.env.WEBSITE_PASSWORD) {
     console.error('ERRO: As variáveis de ambiente WEBSITE_USER e WEBSITE_PASSWORD não estão definidas.');
@@ -51,34 +59,36 @@ async function main() {
 
   try {
     // --- ETAPA DE LOGIN ---
-    console.log('Navegando para a página de login...');
-    await page.goto('https://app.assectra.com.br/v3/', {
-      waitUntil: 'networkidle2',
-    });
-
-    await page.waitForSelector('md-dialog input[name="Usuario"]', {
-      visible: true,
-    });
-    await page.waitForSelector('md-dialog input[name="Senha"]', {
-      visible: true,
-    });
-
-    console.log('Preenchendo credenciais...');
-    await page.type('input[name="Usuario"]', process.env.WEBSITE_USER);
-    await page.type('input[name="Senha"]', process.env.WEBSITE_PASSWORD);
-
-    const loginButtonSelector = 'button[ng-click="Acessar()"]';
-    await page.waitForSelector(loginButtonSelector);
-    await page.click(loginButtonSelector);
-
-    console.log('Login realizado. Aguardando redirecionamento...');
-    await page.waitForNavigation({ waitUntil: 'networkidle2' });
-    console.log('Redirecionamento concluído.');
+    // A lógica de login foi abstraída para o módulo de autenticação
+    await login(page);
 
     // --- ETAPA DE EXTRAÇÃO DE DADOS ---
-    await extrairDadosColaboradores(browser, page, empresasParaExtrair);
+    // Executa a tarefa selecionada
+    if (entity === 'employees') {
+      if (task === 'profiles') {
+        await extrairDadosColaboradores(browser, page, empresasParaExtrair);
+      } else if (task === 'documents') {
+        await baixarDocumentosColaboradores(browser, page, empresasParaExtrair);
+      }
+    } else if (entity === 'companies') {
+      // Lógica futura para empresas
+      console.log(`(NÃO IMPLEMENTADO) Chamaria o serviço para '${task}' de '${entity}' aqui.`);
+      // if (task === 'profiles') {
+      //   await extrairDadosEmpresas(browser, page, empresasParaExtrair);
+      // } else if (task === 'documents') {
+      //   await baixarDocumentosEmpresas(browser, page, empresasParaExtrair);
+      // }
+    } else {
+      throw new Error('Lógica de roteamento para entidade não implementada.');
+    }
   } catch (error) {
-    console.error('Ocorreu um erro durante a extração:', error);
+    console.error('Ocorreu um erro durante a execução:', error);
+    const errorScreenshotPath = path.resolve('output', 'error_screenshot.png');
+    if (page) {
+      console.log(`Salvando screenshot do erro em: ${errorScreenshotPath}`);
+      await page.screenshot({ path: errorScreenshotPath, fullPage: true });
+    }
+    process.exit(1);
   } finally {
     console.log('\nProcesso finalizado. Fechando o navegador.');
     await browser.close();

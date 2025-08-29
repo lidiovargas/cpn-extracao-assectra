@@ -1,6 +1,24 @@
-Execute o comando abaixo para construir a imagem e iniciar o container:
+# Extração Assectra
 
-    docker-compose up --build
+## Como Executar
+
+O projeto utiliza Docker e espera um argumento para definir qual tarefa executar, no formato `<entidade>:<tarefa>`.
+
+**Lembre-se:** Sempre reconstrua a imagem após alterar o código-fonte ou o `package.json`.
+
+### Extrair Perfis de Colaboradores
+
+```bash
+docker compose build && \
+docker compose run --rm scraper npm run employees:profiles
+```
+
+### Baixar Documentos de Colaboradores
+
+```bash
+docker compose build && \
+docker compose run --rm scraper npm run employees:documents
+```
 
 # Como Depurar Scripts do Puppeteer (Headless)
 
