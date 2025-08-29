@@ -23,6 +23,13 @@ const empresasParaExtrair = [
  * Função principal que executa o processo de web scraping.
  */
 async function main() {
+  // --- VERIFICAÇÃO DE VARIÁVEIS DE AMBIENTE ---
+  if (!process.env.WEBSITE_USER || !process.env.WEBSITE_PASSWORD) {
+    console.error('ERRO: As variáveis de ambiente WEBSITE_USER e WEBSITE_PASSWORD não estão definidas.');
+    console.error('Por favor, crie um arquivo .env na raiz do projeto e defina essas variáveis.');
+    process.exit(1); // Encerra a aplicação com código de erro
+  }
+
   console.log('Iniciando o navegador...');
   const browser = await puppeteer.launch({
     headless: 'new',
