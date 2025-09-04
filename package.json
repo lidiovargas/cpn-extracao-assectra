@@ -6,11 +6,15 @@
   "scripts": {
     "build": "babel src -d dist",
     "start": "node dist/index.js",
-    "dev": "babel-node src/index.js",
     "employees:profiles": "node dist/index.js employees:profiles",
     "employees:documents": "node dist/index.js employees:documents",
     "companies:profiles": "node dist/index.js companies:profiles",
-    "companies:documents": "node dist/index.js companies:documents"
+    "companies:documents": "node dist/index.js companies:documents",
+    "dev": "nodemon -L --exec babel-node src/index.js",
+    "dev:employees:profiles": "nodemon -L --exec babel-node src/index.js employees:profiles",
+    "dev:employees:documents": "nodemon -L --exec babel-node src/index.js employees:documents",
+    "dev:companies:profiles": "nodemon -L --exec babel-node src/index.js companies:profiles",
+    "dev:companies:documents": "nodemon -L --exec babel-node src/index.js companies:documents"
   },
   "keywords": [
     "puppeteer",
@@ -30,6 +34,7 @@
     "@babel/cli": "^7.21.0",
     "@babel/core": "^7.21.0",
     "@babel/node": "^7.20.7",
-    "@babel/preset-env": "^7.21.0"
+    "@babel/preset-env": "^7.21.0",
+    "nodemon": "^3.1.10"
   }
 }

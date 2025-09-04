@@ -4,13 +4,11 @@ services:
     container_name: assectra_scraper
     env_file:
       - .env
-    # Para desenvolvimento: sincroniza o código-fonte para dentro do container.
-    develop:
-      watch:
-        - action: sync
-          path: ./src
-          target: /usr/src/app/src
-    # Para dados persistentes: mapeia a pasta de saída para que os arquivos
-    # gerados no container fiquem disponíveis na sua máquina.
     volumes:
+      # Mapeia o código-fonte para o contêiner. Isso permite que o nodemon
+      # (rodando no contêiner) detecte mudanças feitas na sua máquina
+      # e reinicie o script automaticamente.
+      - ./src:/usr/src/app/src
+      # Mapeia a pasta de saída para que os arquivos gerados no contêiner
+      # fiquem disponíveis na sua máquina.
       - ./output:/usr/src/app/output

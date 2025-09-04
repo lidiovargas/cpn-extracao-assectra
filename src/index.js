@@ -12,24 +12,45 @@ import { empresasParaExtrair } from './config/companies.js';
  */
 async function main() {
   // --- ROTEAMENTO DE TAREFA ---
-  const command = process.argv[2]; // Pega o argumento completo, ex: "employees:profiles"
+  // Mapeia os comandos para as funções de serviço correspondentes.
+  // Esta estrutura (dispatch table) facilita a adição de novas tarefas sem aumentar a complexidade do código.
+  const taskMap = {
+    employees: {
+      profiles: extrairDadosColaboradores,
+      documents: baixarDocumentosColaboradores,
+    },
+    companies: {
+      // Lógica futura para empresas
+      profiles: async () =>
+        console.log('(NÃO IMPLEMENTADO) Chamaria o serviço para "profiles" de "companies" aqui.'),
+      documents: async () =>
+        console.log('(NÃO IMPLEMENTADO) Chamaria o serviço para "documents" de "companies" aqui.'),
+    },
+  };
+
+  const command = process.argv[2];
   if (!command || !command.includes(':')) {
     console.error('ERRO: Nenhuma tarefa especificada.');
     console.error('Uso: node src/index.js <entidade>:<tarefa>');
-    console.error('Exemplos: employees:profiles, employees:documents');
+    const validCommands = Object.keys(taskMap)
+      .flatMap((e) => Object.keys(taskMap[e]).map((t) => `${e}:${t}`))
+      .join(', ');
+    console.error(`  Exemplos: ${validCommands}`);
     process.exit(1);
   }
-  const [entity, task] = command.split(':');
-  const validEntities = ['employees', 'companies'];
-  const validTasks = ['profiles', 'documents'];
 
-  if (!validEntities.includes(entity) || !validTasks.includes(task)) {
+  const [entity, task] = command.split(':');
+  const taskFunction = taskMap[entity]?.[task];
+
+  if (!taskFunction) {
     console.error(`ERRO: Tarefa ou entidade inválida: "${command}".`);
-    console.error(`  Entidades válidas: ${validEntities.join(', ')}`);
-    console.error(`  Tarefas válidas: ${validTasks.join(', ')}`);
+    const validCommands = Object.keys(taskMap)
+      .flatMap((e) => Object.keys(taskMap[e]).map((t) => `${e}:${t}`))
+      .join(', ');
+    console.error(`  Comandos válidos: ${validCommands}`);
     process.exit(1);
   }
-  console.log(`Executando a tarefa: ${task}`);
+  console.log(`Executando a tarefa: ${entity}:${task}`);
 
   // --- VERIFICAÇÃO DE VARIÁVEIS DE AMBIENTE ---
   if (!process.env.WEBSITE_USER || !process.env.WEBSITE_PASSWORD) {
@@ -41,15 +62,18 @@ async function main() {
   console.log('Iniciando o navegador...');
   const browser = await puppeteer.launch({
     headless: 'new',
+    // Aponta para o executável do Chromium instalado no Dockerfile
+    executablePath: '/usr/bin/chromium',
+    // Argumentos recomendados para rodar no Docker e evitar problemas de sandbox
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
+      '--disable-dev-shm-usage', // Super importante em ambientes com memória limitada
       '--disable-accelerated-2d-canvas',
       '--no-first-run',
       '--no-zygote',
       // '--single-process', // REMOVIDO: Pode causar instabilidade.
-      '--disable-gpu',
+      '--disable-gpu', // Desnecessário em modo headless
     ],
   });
   const page = await browser.newPage();
@@ -63,24 +87,8 @@ async function main() {
     await login(page);
 
     // --- ETAPA DE EXTRAÇÃO DE DADOS ---
-    // Executa a tarefa selecionada
-    if (entity === 'employees') {
-      if (task === 'profiles') {
-        await extrairDadosColaboradores(browser, page, empresasParaExtrair);
-      } else if (task === 'documents') {
-        await baixarDocumentosColaboradores(browser, page, empresasParaExtrair);
-      }
-    } else if (entity === 'companies') {
-      // Lógica futura para empresas
-      console.log(`(NÃO IMPLEMENTADO) Chamaria o serviço para '${task}' de '${entity}' aqui.`);
-      // if (task === 'profiles') {
-      //   await extrairDadosEmpresas(browser, page, empresasParaExtrair);
-      // } else if (task === 'documents') {
-      //   await baixarDocumentosEmpresas(browser, page, empresasParaExtrair);
-      // }
-    } else {
-      throw new Error('Lógica de roteamento para entidade não implementada.');
-    }
+    // Executa a tarefa selecionada a partir do mapa, passando os argumentos necessários.
+    await taskFunction(browser, page, empresasParaExtrair);
   } catch (error) {
     console.error('Ocorreu um erro durante a execução:', error);
     const errorScreenshotPath = path.resolve('output', 'error_screenshot.png');
@@ -88,7 +96,10 @@ async function main() {
       console.log(`Salvando screenshot do erro em: ${errorScreenshotPath}`);
       await page.screenshot({ path: errorScreenshotPath, fullPage: true });
     }
-    process.exit(1);
+    // Em modo de produção, encerra com erro. Em desenvolvimento, permite que o nodemon continue.
+    if (process.env.NODE_ENV === 'production') {
+      process.exit(1);
+    }
   } finally {
     console.log('\nProcesso finalizado. Fechando o navegador.');
     await browser.close();

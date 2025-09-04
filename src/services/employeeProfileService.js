@@ -10,8 +10,10 @@ import path from 'path';
  * @param {Array<string>} empresasParaExtrair - Lista com os nomes das empresas.
  */
 export async function extrairDadosColaboradores(browser, page, empresasParaExtrair) {
+  const outputSubfolder = 'employee-profiles';
+  const baseOutputDir = path.join('output', outputSubfolder);
   // Limpa e recria o diretório de debug no início da execução.
-  const debugDir = path.join('output', 'debug');
+  const debugDir = path.join(baseOutputDir, 'debug');
   console.log('Limpando diretório de debug...');
   // Remove o diretório e todo o seu conteúdo. O 'force: true' evita erro se o diretório não existir.
   fs.rmSync(debugDir, { recursive: true, force: true });
@@ -148,19 +150,27 @@ export async function extrairDadosColaboradores(browser, page, empresasParaExtra
         todosOsDados.push(dadosFormatados);
 
         if (dadosFormatados.imageUrl) {
-          await baixarImagem(browser, page, dadosFormatados.imageUrl, nomeEmpresa, dadosFormatados.Nome);
+          // Passa o subdiretório para a função de download de imagem,
+          // para que as imagens sejam salvas em 'output/employee-profile/images/...'
+          await baixarImagem(
+            browser,
+            baseOutputDir,
+            dadosFormatados.imageUrl,
+            nomeEmpresa,
+            dadosFormatados.Nome
+          );
         }
 
         //DEBUG
-        await page.screenshot({ path: `output/debug/passo_${i}_1_preescape.png`, fullPage: true });
-        fs.writeFileSync(`output/debug/passo_${i}_1_preescape.html`, await page.content());
+        await page.screenshot({ path: path.join(debugDir, `passo_${i}_1_preescape.png`), fullPage: true });
+        fs.writeFileSync(path.join(debugDir, `passo_${i}_1_preescape.html`), await page.content());
 
         await page.keyboard.press('Escape');
         await page.waitForSelector(modalContentSelector, { hidden: true });
 
         //DEBUG
-        await page.screenshot({ path: `output/debug/passo_${i}_2_postescape.png`, fullPage: true });
-        fs.writeFileSync(`output/debug/passo_${i}_2_postescape.html`, await page.content());
+        await page.screenshot({ path: path.join(debugDir, `passo_${i}_2_postescape.png`), fullPage: true });
+        fs.writeFileSync(path.join(debugDir, `passo_${i}_2_postescape.html`), await page.content());
 
         // CORREÇÃO CRÍTICA: Espera o 'backdrop' do modal desaparecer completamente
         // para evitar que ele intercepte o próximo clique.
@@ -242,7 +252,9 @@ export async function extrairDadosColaboradores(browser, page, empresasParaExtra
 
     // console.log(`\n--- Dados Finais para ${nomeEmpresa} ---`);
     // console.log(JSON.stringify(todosOsDados, null, 2));
-    salvarDadosJSON(nomeEmpresa, todosOsDados);
-    salvarComoExcel(nomeEmpresa, todosOsDados);
+    // Passa o subdiretório para as funções de salvamento, garantindo que os arquivos
+    // sejam criados dentro de 'output/employee-profiles/'.
+    salvarDadosJSON(baseOutputDir, nomeEmpresa, todosOsDados);
+    salvarComoExcel(baseOutputDir, nomeEmpresa, todosOsDados);
   }
 }

@@ -4,13 +4,26 @@
 
 O projeto utiliza Docker e espera um argumento para definir qual tarefa executar, no formato `<entidade>:<tarefa>`.
 
-**Lembre-se:** Sempre reconstrua a imagem após alterar o código-fonte ou o `package.json`.
+### Modo de Desenvolvimento (com Hot-Reload)
+
+Para rodar um script em modo de desenvolvimento, use os comandos `dev:*`. O `nodemon` irá reiniciar o script automaticamente sempre que um arquivo na pasta `src` for alterado.
+
+```bash
+# Se tiver mudado o package.json, refaça a build manualmente
+docker compose build
+# Exemplo para extrair perfis de colaboradores
+docker compose run --rm scraper npm run dev:employees:profiles
+# Exemplo para extrair documentos de colaboradores
+docker compose run --rm scraper npm run dev:employees:documents
+```
 
 ### Extrair Perfis de Colaboradores
 
 ```bash
 docker compose build && \
 docker compose run --rm scraper npm run employees:profiles
+
+
 ```
 
 ### Baixar Documentos de Colaboradores

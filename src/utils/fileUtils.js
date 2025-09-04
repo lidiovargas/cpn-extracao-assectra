@@ -8,8 +8,8 @@ import { toTitleCase } from './formatter.js';
  * @param {string} nomeEmpresa - O nome da empresa para criar a pasta e o nome do arquivo.
  * @param {Array<object>} dados - O array de objetos com os dados dos colaboradores.
  */
-export function salvarDadosJSON(nomeEmpresa, dados) {
-  const outputDir = 'output';
+export function salvarDadosJSON(outputSubfolder, nomeEmpresa, dados) {
+  const outputDir = outputSubfolder;
   if (!fs.existsSync(outputDir)) {
     fs.mkdirSync(outputDir);
   }
@@ -24,8 +24,8 @@ export function salvarDadosJSON(nomeEmpresa, dados) {
  * @param {string} nomeEmpresa - O nome da empresa para o nome do arquivo.
  * @param {Array<object>} dados - O array de objetos com os dados dos colaboradores.
  */
-export function salvarComoExcel(nomeEmpresa, dados) {
-  const outputDir = 'output';
+export function salvarComoExcel(outputSubfolder, nomeEmpresa, dados) {
+  const outputDir = outputSubfolder;
   if (!fs.existsSync(outputDir)) {
     fs.mkdirSync(outputDir);
   }
@@ -97,14 +97,14 @@ export function salvarComoExcel(nomeEmpresa, dados) {
  * @param {string} nomeEmpresa - O nome da empresa para criar a subpasta.
  * @param {string} nomeColaborador - O nome do colaborador para nomear o arquivo.
  */
-export async function baixarImagem(browser, page, imageUrl, nomeEmpresa, nomeColaborador) {
+export async function baixarImagem(browser, outputSubfolder, imageUrl, nomeEmpresa, nomeColaborador) {
   let imagePage = null;
   try {
     imagePage = await browser.newPage();
     const viewSource = await imagePage.goto(imageUrl);
     const buffer = await viewSource.buffer();
 
-    const empresaDir = path.join('output', nomeEmpresa.replace(/[\/\\?%*:|"<>]/g, '-'));
+    const empresaDir = path.join(outputSubfolder, nomeEmpresa.replace(/[\/\\?%*:|"<>]/g, '-'));
     if (!fs.existsSync(empresaDir)) {
       fs.mkdirSync(empresaDir, { recursive: true });
     }
