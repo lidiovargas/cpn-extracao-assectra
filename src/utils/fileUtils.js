@@ -124,3 +124,41 @@ export async function baixarImagem(browser, outputSubfolder, imageUrl, nomeEmpre
     }
   }
 }
+
+/**
+ * Baixa um arquivo de uma URL e o salva em um caminho específico.
+ * Utiliza o contexto da página existente para fazer a requisição, o que é mais eficiente.
+ * @param {object} page - A instância da página do Puppeteer.
+ * @param {string} downloadDir - O diretório onde o arquivo será salvo.
+ * @param {string} fileUrl - A URL completa do arquivo a ser baixado.
+ * @param {string} finalFilename - O nome final do arquivo (com extensão).
+ * @returns {Promise<boolean>} - Retorna true em caso de sucesso, false em caso de falha.
+ */
+export async function baixarArquivo(page, downloadDir, fileUrl, finalFilename) {
+  try {
+    // Baixa o conteúdo do arquivo usando a API Fetch no contexto do navegador
+    const fileBuffer = await page.evaluate(async (url) => {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Falha ao buscar o arquivo: ${response.status} ${response.statusText}`);
+      }
+      const buffer = await response.arrayBuffer();
+      // Converte para um array de bytes para ser serializável
+      return Array.from(new Uint8Array(buffer));
+    }, fileUrl);
+
+    // Garante que o diretório de destino exista
+    if (!fs.existsSync(downloadDir)) {
+      fs.mkdirSync(downloadDir, { recursive: true });
+    }
+
+    const filePath = path.join(downloadDir, finalFilename);
+    fs.writeFileSync(filePath, Buffer.from(fileBuffer));
+
+    console.log(`   - SUCESSO: Arquivo salvo como "${finalFilename}"`);
+    return true;
+  } catch (error) {
+    console.error(`   - ERRO ao baixar o arquivo "${finalFilename}": ${error.message}`);
+    return false;
+  }
+}
