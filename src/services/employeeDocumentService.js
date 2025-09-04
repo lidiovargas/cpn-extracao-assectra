@@ -6,26 +6,6 @@ import { toTitleCase } from '../utils/formatter.js';
 import { baixarArquivo } from '../utils/fileUtils.js';
 
 /**
- * Configura o comportamento de download do Puppeteer.
- * Esta função será chamada para cada empresa para garantir que os arquivos sejam salvos na pasta correta.
- * @param {object} page - A instância da página do Puppeteer.
- * @param {string} downloadPath - O caminho para a pasta de download.
- */
-async function setupDownloadBehavior(page, downloadPath) {
-  if (!fs.existsSync(downloadPath)) {
-    // Cria o diretório da empresa se ele não existir
-    fs.mkdirSync(downloadPath, { recursive: true });
-  }
-  console.log(`Arquivos serão baixados em: ${downloadPath}`);
-
-  const client = await page.target().createCDPSession();
-  await client.send('Page.setDownloadBehavior', {
-    behavior: 'allow',
-    downloadPath: downloadPath,
-  });
-}
-
-/**
  * Navega para a página de acervo digital e baixa os documentos dos colaboradores.
  * @param {object} browser - A instância do navegador Puppeteer.
  * @param {object} page - A instância da página do Puppeteer.
@@ -53,10 +33,7 @@ export async function baixarDocumentosColaboradores(browser, page, empresasParaE
       // Cria um caminho de download específico para a empresa e obra, com nomes sanitizados
       const empresaSanitizada = nomeEmpresa.replace(/[^a-z0-9]/gi, '_').toLowerCase();
       const obraSanitizada = nomeObra.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-      const downloadDir = path.join(baseDownloadDir, empresaSanitizada, obraSanitizada);
-
-      // Configura o download para o diretório da combinação atual
-      await setupDownloadBehavior(page, downloadDir);
+      const obraDownloadDir = path.join(baseDownloadDir, empresaSanitizada, obraSanitizada);
 
       console.log(`\n--- Processando Empresa: ${nomeEmpresa} | Obra: ${nomeObra} ---`);
 
@@ -283,16 +260,20 @@ export async function baixarDocumentosColaboradores(browser, page, empresasParaE
                 console.log(`   - URL do arquivo encontrada: ${fileUrl}`);
 
                 const fileExtension = path.extname(new URL(fileUrl).pathname);
-                // Usa o nome do arquivo da tabela, que é mais confiável, e sanitiza.
-                const baseFilename = path.basename(
-                  rowData.arquivoCellText,
-                  path.extname(rowData.arquivoCellText)
-                );
-                const sanitizedFilename = baseFilename.replace(/[\\/:*?"<>|]/g, '-');
+                // Sanitiza a descrição do arquivo da tabela para usar como nome de arquivo.
+                // Removemos o path.basename, pois ele interpreta '/' como separador de diretório no Windows, causando nomes incorretos.
+                const sanitizedFilename = rowData.arquivoCellText.replace(/[\\/:*?"<>|]/g, '-');
                 const finalFilename = `${sanitizedFilename}${fileExtension}`;
 
+                // Cria o caminho de download final, incluindo o nome do colaborador.
+                const nomeColaboradorSanitizado = toTitleCase(nomeColaboradorAtual).replace(
+                  /[\/\\?%*:|"<>]/g,
+                  '-'
+                );
+                const colaboradorDownloadDir = path.join(obraDownloadDir, nomeColaboradorSanitizado);
+
                 // Reutiliza a função de utilitário para baixar e salvar o arquivo
-                await baixarArquivo(browser, page, downloadDir, fileUrl, finalFilename);
+                await baixarArquivo(browser, page, colaboradorDownloadDir, fileUrl, finalFilename);
               } catch (downloadError) {
                 console.error(
                   `   - ERRO no processo do documento "${rowData.arquivoCellText}": ${downloadError.message}`

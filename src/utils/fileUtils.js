@@ -146,10 +146,17 @@ export async function baixarArquivo(browser, page, downloadDir, fileUrl, finalFi
     // 2. Define os cookies na nova página. Isso é crucial para autenticação.
     await downloadPage.setCookie(...cookies);
 
+    // 3. Define o cabeçalho Referer. Isso faz a requisição parecer que veio da página principal,
+    // o que é um forte mecanismo de defesa contra "hotlinking" e resolve o erro 403 Forbidden.
+    await downloadPage.setExtraHTTPHeaders({
+      Referer: page.url(),
+    });
+
     // Herda o User-Agent da sessão principal para consistência e para evitar bloqueios.
     await downloadPage.setUserAgent(await browser.userAgent());
 
-    const response = await downloadPage.goto(fileUrl, { waitUntil: 'networkidle0', timeout: 30000 });
+    // Altera o waitUntil para 'load', que é mais adequado para downloads de arquivos, e aumenta o timeout.
+    const response = await downloadPage.goto(fileUrl, { waitUntil: 'load', timeout: 60000 });
 
     if (!response.ok()) {
       throw new Error(`Falha ao buscar o arquivo: ${response.status()} ${response.statusText()}`);
