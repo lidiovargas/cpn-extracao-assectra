@@ -127,25 +127,35 @@ export async function baixarImagem(browser, outputSubfolder, imageUrl, nomeEmpre
 
 /**
  * Baixa um arquivo de uma URL e o salva em um caminho específico.
- * Utiliza o contexto da página existente para fazer a requisição, o que é mais eficiente.
- * @param {object} page - A instância da página do Puppeteer.
+ * Abre uma nova página para isolar o download e aumentar a robustez.
+ * @param {import('puppeteer-core').Browser} browser - A instância do navegador Puppeteer.
+ * @param {import('puppeteer-core').Page} page - A página principal que detém a sessão (cookies).
  * @param {string} downloadDir - O diretório onde o arquivo será salvo.
  * @param {string} fileUrl - A URL completa do arquivo a ser baixado.
  * @param {string} finalFilename - O nome final do arquivo (com extensão).
  * @returns {Promise<boolean>} - Retorna true em caso de sucesso, false em caso de falha.
  */
-export async function baixarArquivo(page, downloadDir, fileUrl, finalFilename) {
+export async function baixarArquivo(browser, page, downloadDir, fileUrl, finalFilename) {
+  let downloadPage = null;
   try {
-    // Baixa o conteúdo do arquivo usando a API Fetch no contexto do navegador
-    const fileBuffer = await page.evaluate(async (url) => {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`Falha ao buscar o arquivo: ${response.status} ${response.statusText}`);
-      }
-      const buffer = await response.arrayBuffer();
-      // Converte para um array de bytes para ser serializável
-      return Array.from(new Uint8Array(buffer));
-    }, fileUrl);
+    // 1. Pega os cookies da página principal, que contém a sessão de login.
+    const cookies = await page.cookies();
+
+    downloadPage = await browser.newPage();
+
+    // 2. Define os cookies na nova página. Isso é crucial para autenticação.
+    await downloadPage.setCookie(...cookies);
+
+    // Herda o User-Agent da sessão principal para consistência e para evitar bloqueios.
+    await downloadPage.setUserAgent(await browser.userAgent());
+
+    const response = await downloadPage.goto(fileUrl, { waitUntil: 'networkidle0', timeout: 30000 });
+
+    if (!response.ok()) {
+      throw new Error(`Falha ao buscar o arquivo: ${response.status()} ${response.statusText()}`);
+    }
+
+    const buffer = await response.buffer();
 
     // Garante que o diretório de destino exista
     if (!fs.existsSync(downloadDir)) {
@@ -153,12 +163,16 @@ export async function baixarArquivo(page, downloadDir, fileUrl, finalFilename) {
     }
 
     const filePath = path.join(downloadDir, finalFilename);
-    fs.writeFileSync(filePath, Buffer.from(fileBuffer));
+    fs.writeFileSync(filePath, buffer);
 
     console.log(`   - SUCESSO: Arquivo salvo como "${finalFilename}"`);
     return true;
   } catch (error) {
     console.error(`   - ERRO ao baixar o arquivo "${finalFilename}": ${error.message}`);
     return false;
+  } finally {
+    if (downloadPage) {
+      await downloadPage.close();
+    }
   }
 }

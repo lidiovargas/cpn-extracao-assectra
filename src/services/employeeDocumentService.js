@@ -173,6 +173,30 @@ export async function baixarDocumentosColaboradores(browser, page, empresasParaE
             }
           }
 
+          // Mapeia os cabeçalhos da tabela para encontrar os índices das colunas dinamicamente.
+          const tableHeaderSelector = `${tableSelector} thead tr`;
+          await page.waitForSelector(tableHeaderSelector);
+          const columnMap = await page.evaluate((headerSelector) => {
+            const headers = document.querySelectorAll(`${headerSelector} th`);
+            const map = {};
+            headers.forEach((th, index) => {
+              const headerText = th.innerText.trim().toUpperCase();
+              if (headerText) {
+                // Usa 1-based index para compatibilidade com :nth-child
+                map[headerText] = index + 1;
+              }
+            });
+            return map;
+          }, tableHeaderSelector);
+
+          if (!columnMap['COLABORADOR'] || !columnMap['ARQUIVOS']) {
+            console.error(
+              'ERRO CRÍTICO: Não foi possível mapear as colunas essenciais da tabela (Colaborador, Arquivos).'
+            );
+            continue; // Pula para a próxima combinação de empresa/obra
+          }
+          console.log('Mapeamento de colunas detectado:', columnMap);
+
           const rows = await page.$$(`${tableSelector} tbody tr[ng-repeat]`);
           console.log(`Encontradas ${rows.length} linhas de documentos para ${nomeEmpresa} | ${nomeObra}.`);
 
@@ -183,54 +207,71 @@ export async function baixarDocumentosColaboradores(browser, page, empresasParaE
             const currentRow = (await page.$$(`${tableSelector} tbody tr[ng-repeat]`))[i];
             if (!currentRow) continue;
 
-            const rowData = await currentRow.evaluate((el) => {
+            const rowData = await currentRow.evaluate((el, map) => {
               const cells = el.querySelectorAll('td');
-              // Colaborador (célula 3, index 2). O nome só aparece se for diferente do anterior.
-              const colaboradorCellText = cells.length > 2 ? cells[2].innerText.trim() : '';
-              // Arquivo (célula 5, index 4)
-              const arquivoCellText = cells.length > 4 ? cells[4].innerText.trim() : '';
+              const getCellText = (colName) => {
+                const index = map[colName] - 1; // Converte de 1-based para 0-based
+                if (index >= 0 && cells.length > index) {
+                  return cells[index].innerText.trim();
+                }
+                return '';
+              };
 
-              // Descrição do Documento (célula 4, index 3)
-              let documentoDescricao = '';
-              if (cells.length > 3) {
-                // Clona o nó para não alterar o DOM original
-                const cellClone = cells[3].cloneNode(true);
-                // Remove todos os elementos filhos (spans, icons) para sobrar apenas o texto principal
-                cellClone.querySelectorAll('span, i').forEach((child) => child.remove());
-                documentoDescricao = cellClone.innerText.trim();
-              }
-
-              // Verifica se o ícone de download (lupa) está visível
-              const hasDownloadIcon = !!(
-                cells.length > 3 && cells[3].querySelector('i.fa-search:not(.ng-hide)')
-              );
+              const colaboradorCellText = getCellText('COLABORADOR');
+              const arquivoCellText = getCellText('ARQUIVOS'); // Esta é a descrição do documento
 
               return {
                 colaboradorCellText,
                 arquivoCellText,
-                documentoDescricao,
-                hasDownloadIcon,
               };
-            });
+            }, columnMap);
 
             // Atualiza o nome do colaborador se um novo for encontrado na linha
             if (rowData.colaboradorCellText) {
               nomeColaboradorAtual = rowData.colaboradorCellText;
             }
 
-            if (!rowData.hasDownloadIcon) continue;
+            // A abordagem de encontrar e clicar é movida para dentro de um único page.evaluate
+            // para ser mais robusta contra problemas de timing em aplicações AngularJS.
+            const clickResult = await currentRow.evaluate((row, arquivoColumnIndex) => {
+              // Alvo corrigido: usa o índice da coluna "Arquivos" encontrado dinamicamente
+              const cell = row.querySelector(`td:nth-child(${arquivoColumnIndex})`);
+              if (!cell) {
+                return {
+                  clicked: false,
+                  error: `Célula de Arquivos (TD ${arquivoColumnIndex}) não encontrada.`,
+                };
+              }
+              const icon = cell.querySelector('i.fa-search[ng-click*="ProcessaArquivo"]');
+              if (icon) {
+                icon.click(); // Clica no ícone encontrado
+                return { clicked: true, error: null };
+              }
+              return {
+                clicked: false,
+                error: 'Ícone de pesquisa não encontrado na célula.',
+                cellHTML: cell.innerHTML,
+              };
+            }, columnMap['ARQUIVOS']); // Passa o índice da coluna "Arquivos"
 
+            // Log de depuração para cada linha, mostrando os dados extraídos.
             console.log(
-              ` -> [${i + 1}/${rows.length}] Processando "${
-                rowData.documentoDescricao
-              }" para "${nomeColaboradorAtual}"...`
+              `[Linha ${i + 1}/${rows.length}] Colab.: "${nomeColaboradorAtual}" | Arquivo: "${
+                rowData.arquivoCellText
+              }" | Tentativa de Clique no Ícone: ${clickResult.clicked}`
             );
 
-            const searchIcon = await currentRow.$('td:nth-child(4) i.fa-search');
-            if (searchIcon) {
+            if (!clickResult.clicked) {
+              console.error(`   - Falha ao clicar: ${clickResult.error}`);
+              console.log(`   - Conteúdo da Célula 4 no momento da falha: ${clickResult.cellHTML}`);
+            }
+
+            // Prossegue apenas se o ícone foi encontrado e clicado com sucesso.
+            if (clickResult.clicked) {
               const modalSelector = 'md-dialog';
               try {
-                await searchIcon.click();
+                console.log(`   -> Tentando abrir modal para "${rowData.arquivoCellText}"...`);
+                // O clique já foi feito, agora apenas esperamos o resultado (o modal aparecer).
                 await page.waitForSelector(modalSelector, { visible: true, timeout: 15000 });
                 console.log('   - Modal de visualização aberto.');
 
@@ -242,17 +283,19 @@ export async function baixarDocumentosColaboradores(browser, page, empresasParaE
                 console.log(`   - URL do arquivo encontrada: ${fileUrl}`);
 
                 const fileExtension = path.extname(new URL(fileUrl).pathname);
-                const sanitizedDescription = toTitleCase(rowData.documentoDescricao).replace(
-                  /[\\/:*?"<>|]/g,
-                  '-'
+                // Usa o nome do arquivo da tabela, que é mais confiável, e sanitiza.
+                const baseFilename = path.basename(
+                  rowData.arquivoCellText,
+                  path.extname(rowData.arquivoCellText)
                 );
-                const finalFilename = `${sanitizedDescription}${fileExtension}`;
+                const sanitizedFilename = baseFilename.replace(/[\\/:*?"<>|]/g, '-');
+                const finalFilename = `${sanitizedFilename}${fileExtension}`;
 
                 // Reutiliza a função de utilitário para baixar e salvar o arquivo
-                await baixarArquivo(page, downloadDir, fileUrl, finalFilename);
+                await baixarArquivo(browser, page, downloadDir, fileUrl, finalFilename);
               } catch (downloadError) {
                 console.error(
-                  `   - ERRO no processo do documento "${rowData.documentoDescricao}": ${downloadError.message}`
+                  `   - ERRO no processo do documento "${rowData.arquivoCellText}": ${downloadError.message}`
                 );
                 console.log('   - Tentando recuperar e continuar...');
               } finally {
