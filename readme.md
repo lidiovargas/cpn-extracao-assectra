@@ -16,22 +16,20 @@ docker compose build
 docker compose run --rm scraper-dev npm run dev:employees:profiles
 # Exemplo para extrair documentos de colaboradores
 docker compose run --rm scraper-dev npm run dev:employees:documents
+# TODO: Exemplo para extrair documentos de empresas
+docker compose run --rm scraper-dev npm run dev:companies:documents
 ```
 
-### Extrair Perfis de Colaboradores
+### Modo de produção
 
 ```bash
-docker compose build && \
+docker compose build
+# Exemplo para extrair perfis de colaboradores
 docker compose run --rm scraper npm run employees:profiles
-
-
-```
-
-### Baixar Documentos de Colaboradores
-
-```bash
-docker compose build && \
+# Exemplo para extrair documentos de colaboradores
 docker compose run --rm scraper npm run employees:documents
+# TODO: Exemplo para extrair documentos de empresas
+docker compose run --rm scraper npm run companies:documents
 ```
 
 # Como Depurar Scripts do Puppeteer (Headless)
