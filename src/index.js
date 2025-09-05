@@ -39,6 +39,21 @@ async function main() {
     process.exit(1);
   }
 
+  // --- PARÂMETROS ADICIONAIS (PAGINAÇÃO) ---
+  const args = process.argv.slice(3); // Pega argumentos extras, como --start-page=1
+  const options = {};
+  args.forEach((arg) => {
+    if (arg.startsWith('--start-page=')) {
+      options.startPage = parseInt(arg.split('=')[1], 10);
+    }
+    if (arg.startsWith('--end-page=')) {
+      options.endPage = parseInt(arg.split('=')[1], 10);
+    }
+  });
+  if (options.startPage) {
+    console.log(`Iniciando a partir da página: ${options.startPage}`);
+  }
+
   const [entity, task] = command.split(':');
   const taskFunction = taskMap[entity]?.[task];
 
@@ -88,7 +103,7 @@ async function main() {
 
     // --- ETAPA DE EXTRAÇÃO DE DADOS ---
     // Executa a tarefa selecionada a partir do mapa, passando os argumentos necessários.
-    await taskFunction(browser, page, empresasParaExtrair);
+    await taskFunction(browser, page, empresasParaExtrair, options);
   } catch (error) {
     console.error('Ocorreu um erro durante a execução:', error);
     const errorScreenshotPath = path.resolve('output', 'error_screenshot.png');

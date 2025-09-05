@@ -4,14 +4,20 @@ import { URL } from 'url';
 import { obrasParaExtrair } from '../config/plantas.js';
 import { setupLogger, closeLogger } from '../utils/logger.js';
 import { baixarArquivo } from '../utils/fileUtils.js';
+import { toTitleCase } from '../utils/formatter.js';
 
 /**
  * Navega para a página de acervo digital e baixa os documentos dos colaboradores.
  * @param {object} browser - A instância do navegador Puppeteer.
  * @param {object} page - A instância da página do Puppeteer.
  * @param {Array<string>} empresasParaExtrair - Lista com os nomes das empresas.
+ * @param {object} options - Opções adicionais, como paginação.
+ * @param {number} [options.startPage=1] - A página por onde começar.
+ * @param {number} [options.endPage] - A página onde parar (inclusiva).
  */
-export async function baixarDocumentosColaboradores(browser, page, empresasParaExtrair) {
+export async function baixarDocumentosColaboradores(browser, page, empresasParaExtrair, options = {}) {
+  const { startPage = 1, endPage = Infinity } = options;
+
   const baseDownloadDir = path.resolve('output', 'employee-documents');
   const logFilePath = path.join(baseDownloadDir, 'log.txt');
   setupLogger(logFilePath);
@@ -188,12 +194,31 @@ export async function baixarDocumentosColaboradores(browser, page, empresasParaE
             console.log('Mapeamento de colunas detectado:', columnMap);
 
             // --- INÍCIO DA LÓGICA DE PAGINAÇÃO ---
+            let currentPageNum = 1;
+            let totalPages = 1;
             while (true) {
               const pageInfoSelector = 'ul.pagination a.rounded';
               const pageInfoText = await page
                 .$eval(pageInfoSelector, (el) => el.innerText)
-                .catch(() => 'Página desconhecida');
-              console.log(`\nProcessando ${pageInfoText}...`);
+                .catch(() => '1 de 1');
+              const match = pageInfoText.match(/(\d+)\s+de\s+(\d+)/);
+              if (match) {
+                currentPageNum = parseInt(match[1], 10);
+                totalPages = parseInt(match[2], 10);
+              }
+
+              if (currentPageNum > endPage) {
+                console.log(`Atingido o limite da página final (${endPage}). Encerrando paginação.`);
+                break;
+              }
+
+              if (currentPageNum < startPage) {
+                console.log(
+                  `Página ${currentPageNum} está antes da página inicial (${startPage}). Pulando...`
+                );
+              } else {
+                console.log(`\nProcessando ${pageInfoText}...`);
+              }
 
               const rows = await page.$$(`${tableSelector} tbody tr[ng-repeat]`);
               console.log(
@@ -202,132 +227,121 @@ export async function baixarDocumentosColaboradores(browser, page, empresasParaE
 
               let nomeColaboradorAtual = '';
 
-              for (let i = 0; i < rows.length; i++) {
-                // Re-seleciona os elementos a cada iteração para evitar Stale Element Reference
-                const currentRow = (await page.$$(`${tableSelector} tbody tr[ng-repeat]`))[i];
-                if (!currentRow) continue;
-
-                const rowData = await currentRow.evaluate((el, map) => {
-                  const cells = el.querySelectorAll('td');
-                  const getCellText = (colName) => {
-                    const index = map[colName] - 1; // Converte de 1-based para 0-based
-                    if (index >= 0 && cells.length > index) {
-                      return cells[index].innerText.trim();
-                    }
-                    return '';
-                  };
-
-                  const colaboradorCellText = getCellText('COLABORADOR');
-                  const arquivoCellText = getCellText('ARQUIVOS'); // Esta é a descrição do documento
-
-                  return {
-                    colaboradorCellText,
-                    arquivoCellText,
-                  };
-                }, columnMap);
-
-                // Atualiza o nome do colaborador se um novo for encontrado na linha
-                if (rowData.colaboradorCellText) {
-                  nomeColaboradorAtual = rowData.colaboradorCellText;
-                }
-
-                // A abordagem de encontrar e clicar é movida para dentro de um único page.evaluate
-                // para ser mais robusta contra problemas de timing em aplicações AngularJS.
-                const clickResult = await currentRow.evaluate((row, arquivoColumnIndex) => {
-                  // Alvo corrigido: usa o índice da coluna "Arquivos" encontrado dinamicamente
-                  const cell = row.querySelector(`td:nth-child(${arquivoColumnIndex})`);
-                  if (!cell) {
-                    return {
-                      clicked: false,
-                      error: `Célula de Arquivos (TD ${arquivoColumnIndex}) não encontrada.`,
-                    };
+              if (currentPageNum >= startPage) {
+                for (let i = 0; i < rows.length; i++) {
+                  const success = await processRowWithRetries(i, rows.length);
+                  if (!success) {
+                    console.error(
+                      `Falha ao processar a linha ${i + 1} após múltiplas tentativas. Pulando para a próxima.`
+                    );
                   }
-                  const icon = cell.querySelector('i.fa-search[ng-click*="ProcessaArquivo"]');
-                  if (icon) {
-                    icon.click(); // Clica no ícone encontrado
-                    return { clicked: true, error: null };
-                  }
-                  return {
-                    clicked: false,
-                    error: 'Ícone de pesquisa não encontrado na célula.',
-                    cellHTML: cell.innerHTML,
-                  };
-                }, columnMap['ARQUIVOS']); // Passa o índice da coluna "Arquivos"
-
-                // Log de depuração para cada linha, mostrando os dados extraídos.
-                console.log(
-                  `[Linha ${i + 1}/${rows.length}] Colab.: "${nomeColaboradorAtual}" | Arquivo: "${
-                    rowData.arquivoCellText
-                  }" | Tentativa de Clique no Ícone: ${clickResult.clicked}`
-                );
-
-                if (!clickResult.clicked) {
-                  console.error(`   - Falha ao clicar: ${clickResult.error}`);
-                  console.log(`   - Conteúdo da Célula 4 no momento da falha: ${clickResult.cellHTML}`);
                 }
+              }
 
-                // Prossegue apenas se o ícone foi encontrado e clicado com sucesso.
-                if (clickResult.clicked) {
-                  const modalSelector = 'md-dialog';
+              /**
+               * Tenta processar uma única linha da tabela com uma lógica de retentativas.
+               * @param {number} rowIndex - O índice da linha a ser processada.
+               * @param {number} totalRows - O número total de linhas na página atual.
+               * @returns {Promise<boolean>} - Retorna true se bem-sucedido, false caso contrário.
+               */
+              async function processRowWithRetries(rowIndex, totalRows) {
+                const MAX_RETRIES = 3;
+                for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
                   try {
-                    console.log(`   -> Tentando abrir modal para "${rowData.arquivoCellText}"...`);
-                    // O clique já foi feito, agora apenas esperamos o resultado (o modal aparecer).
-                    await page.waitForSelector(modalSelector, {
-                      visible: true,
-                      timeout: 15000,
-                    });
+                    // Re-seleciona os elementos a cada iteração para evitar Stale Element Reference
+                    const currentRow = (await page.$$(`${tableSelector} tbody tr[ng-repeat]`))[rowIndex];
+                    if (!currentRow) {
+                      console.warn(`[Tentativa ${attempt}] Linha ${rowIndex + 1} não encontrada. Pulando.`);
+                      return true; // Considera sucesso, pois a linha não existe mais.
+                    }
+
+                    const rowData = await currentRow.evaluate((el, map) => {
+                      const cells = el.querySelectorAll('td');
+                      const getCellText = (colName) => {
+                        const index = map[colName] - 1;
+                        return index >= 0 && cells.length > index ? cells[index].innerText.trim() : '';
+                      };
+                      return {
+                        colaboradorCellText: getCellText('COLABORADOR'),
+                        arquivoCellText: getCellText('ARQUIVOS'),
+                      };
+                    }, columnMap);
+
+                    if (rowData.colaboradorCellText) {
+                      nomeColaboradorAtual = rowData.colaboradorCellText;
+                    }
+
+                    console.log(
+                      `[Linha ${
+                        rowIndex + 1
+                      }/${totalRows}] Tentativa ${attempt}/${MAX_RETRIES} para ${nomeEmpresa} | ${nomeObra} | p. ${currentPageNum} de ${totalPages} | ${nomeColaboradorAtual} | ${
+                        rowData.arquivoCellText
+                      }`
+                    );
+
+                    const clickResult = await currentRow.evaluate((row, arquivoColumnIndex) => {
+                      const cell = row.querySelector(`td:nth-child(${arquivoColumnIndex})`);
+                      if (!cell) return { clicked: false, error: 'Célula de Arquivos não encontrada.' };
+                      const icon = cell.querySelector('i.fa-search[ng-click*="ProcessaArquivo"]');
+                      if (icon) {
+                        icon.click();
+                        return { clicked: true, error: null };
+                      }
+                      return { clicked: false, error: 'Ícone de pesquisa não encontrado.' };
+                    }, columnMap['ARQUIVOS']);
+
+                    if (!clickResult.clicked) {
+                      throw new Error(`Falha ao clicar no ícone: ${clickResult.error}`);
+                    }
+
+                    const modalSelector = 'md-dialog';
+                    await page.waitForSelector(modalSelector, { visible: true, timeout: 15000 });
                     console.log('   - Modal de visualização aberto.');
 
                     const fileElementSelector = 'md-dialog iframe[ng-src], md-dialog img[ng-src]';
-                    await page.waitForSelector(fileElementSelector, {
-                      timeout: 10000,
-                    });
+                    await page.waitForSelector(fileElementSelector, { timeout: 10000 });
 
                     const relativeSrc = await page.$eval(fileElementSelector, (el) => el.getAttribute('src'));
                     const fileUrl = new URL(relativeSrc, page.url()).href;
-                    console.log(`   - URL do arquivo encontrada: ${fileUrl}`);
 
                     const fileExtension = path.extname(new URL(fileUrl).pathname);
-                    // Sanitiza a descrição do arquivo da tabela para usar como nome de arquivo.
-                    // Removemos o path.basename, pois ele interpreta '/' como separador de diretório no Windows, causando nomes incorretos.
                     const sanitizedFilename = rowData.arquivoCellText.replace(/[\\/:*?"<>|]/g, '-');
                     const finalFilename = `${sanitizedFilename}${fileExtension}`;
 
-                    // Cria o caminho de download final, incluindo o nome do colaborador.
                     const nomeColaboradorSanitizado = toTitleCase(nomeColaboradorAtual).replace(
                       /[\/\\?%*:|"<>]/g,
                       '-'
                     );
                     const colaboradorDownloadDir = path.join(empresaDownloadDir, nomeColaboradorSanitizado);
 
-                    // Reutiliza a função de utilitário para baixar e salvar o arquivo
                     await baixarArquivo(browser, page, colaboradorDownloadDir, fileUrl, finalFilename);
-                  } catch (downloadError) {
-                    console.error(
-                      `   - ERRO no processo do documento "${rowData.arquivoCellText}": ${downloadError.message}`
-                    );
-                    console.log('   - Tentando recuperar e continuar...');
+
+                    return true; // Sucesso, sai do loop de retentativas
+                  } catch (error) {
+                    console.warn(`   - ERRO (Tentativa ${attempt}): ${error.message}`);
+                    if (attempt === MAX_RETRIES) {
+                      console.error('   - Número máximo de tentativas atingido. Desistindo deste item.');
+                      return false; // Falha definitiva
+                    }
+                    console.log('   - Aguardando 5 segundos antes de tentar novamente...');
+                    await new Promise((r) => setTimeout(r, 5000));
                   } finally {
-                    // Garante que o modal seja fechado, mesmo em caso de erro
-                    try {
-                      const closeButtonSelector = 'md-dialog i.fa-times[ng-click="hide()"]';
-                      await page.waitForSelector(closeButtonSelector, {
-                        timeout: 5000,
-                      });
-                      await page.click(closeButtonSelector);
-                      await page.waitForSelector(modalSelector, {
-                        hidden: true,
-                        timeout: 10000,
-                      });
-                      console.log('   - Modal fechado.');
-                    } catch (closeError) {
-                      console.warn(
-                        '   - Não foi possível fechar o modal clicando no "X". Tentando com a tecla "Escape".'
-                      );
-                      await page.keyboard.press('Escape').catch(() => {});
+                    // Tenta fechar o modal se ele estiver aberto, independentemente do resultado.
+                    const isModalOpen = await page.$('md-dialog');
+                    if (isModalOpen) {
+                      try {
+                        await page.click('md-dialog i.fa-times[ng-click="hide()"]', { timeout: 2000 });
+                        await page.waitForSelector('md-dialog', { hidden: true, timeout: 5000 });
+                        console.log('   - Modal fechado com sucesso.');
+                      } catch (closeError) {
+                        console.warn('   - Falha ao fechar modal com clique, tentando com "Escape".');
+                        await page.keyboard.press('Escape').catch(() => {});
+                        await new Promise((r) => setTimeout(r, 500)); // Pequena pausa
+                      }
                     }
                   }
                 }
+                return false; // Se o loop terminar sem sucesso
               }
 
               // --- LÓGICA PARA IR PARA A PRÓXIMA PÁGINA ---
