@@ -11,7 +11,11 @@ import { baixarArquivo } from '../utils/fileUtils.js';
  * @param {object} page - A instância da página do Puppeteer.
  * @param {Array<string>} empresasParaExtrair - Lista com os nomes das empresas.
  */
-export async function baixarDocumentosColaboradores(browser, page, empresasParaExtrair) {
+export async function baixarDocumentosColaboradores(
+  browser,
+  page,
+  empresasParaExtrair
+) {
   const baseDownloadDir = path.resolve('output', 'employee-documents');
   // Cria e limpa o diretório de debug no início da execução.
   const debugDir = path.join(baseDownloadDir, 'debug');
@@ -24,23 +28,37 @@ export async function baixarDocumentosColaboradores(browser, page, empresasParaE
 
   // 1. Navegar para a página de acervo digital UMA VEZ
   console.log('Navegando para a página de acervo digital...');
-  await page.goto('https://app.assectra.com.br/v3/acervo-digital-colaboradores.php', {
-    waitUntil: 'networkidle2',
-  });
+  await page.goto(
+    'https://app.assectra.com.br/v3/acervo-digital-colaboradores.php',
+    {
+      waitUntil: 'networkidle2',
+    }
+  );
 
   for (const nomeEmpresa of empresasParaExtrair) {
-    for (const nomeObra of obrasParaExtrair) {
-      // Cria um caminho de download específico para a empresa e obra, com nomes sanitizados
-      const empresaSanitizada = nomeEmpresa.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-      const obraSanitizada = nomeObra.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-      const obraDownloadDir = path.join(baseDownloadDir, empresaSanitizada, obraSanitizada);
+    const empresaSanitizada = nomeEmpresa
+      .normalize('NFD') // Decompõe caracteres acentuados (ex: 'Ç' -> 'C' + '¸')
+      .replace(/[\u0300-\u036f]/g, '') // Remove os acentos (diacríticos)
+      .replace(/[^a-z0-9]/gi, '_') // Substitui o que não for letra/número por _
+      .toLowerCase();
+    const empresaDownloadDir = path.join(baseDownloadDir, empresaSanitizada);
 
-      console.log(`\n--- Processando Empresa: ${nomeEmpresa} | Obra: ${nomeObra} ---`);
+    for (const nomeObra of obrasParaExtrair) {
+      const obraSanitizada = nomeObra
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]/gi, '_')
+        .toLowerCase();
+
+      console.log(
+        `\n--- Processando Empresa: ${nomeEmpresa} | Obra: ${nomeObra} ---`
+      );
 
       try {
         // 2. Selecionar a empresa na página
         console.log(`Selecionando a empresa "${nomeEmpresa}"...`);
-        const empresaSelector = '.panel.panel-default select[ng-model="FiltrosEmpreiteiro_id"]';
+        const empresaSelector =
+          '.panel.panel-default select[ng-model="FiltrosEmpreiteiro_id"]';
         await page.waitForSelector(empresaSelector, { timeout: 10000 });
 
         const valorEmpresaHandle = await page.evaluateHandle(
@@ -60,7 +78,9 @@ export async function baixarDocumentosColaboradores(browser, page, empresasParaE
         await valorEmpresaHandle.dispose(); // Libera o handle
 
         if (!valorEmpresa) {
-          console.warn(`Empresa "${nomeEmpresa}" não encontrada no dropdown. Pulando combinação.`);
+          console.warn(
+            `Empresa "${nomeEmpresa}" não encontrada no dropdown. Pulando combinação.`
+          );
           continue;
         }
         await page.select(empresaSelector, valorEmpresa);
@@ -88,19 +108,27 @@ export async function baixarDocumentosColaboradores(browser, page, empresasParaE
         await valorObraHandle.dispose(); // Libera o handle
 
         if (!valorObra) {
-          console.warn(`Obra "${nomeObra}" não encontrada no dropdown. Pulando combinação.`);
+          console.warn(
+            `Obra "${nomeObra}" não encontrada no dropdown. Pulando combinação.`
+          );
           continue;
         }
         await page.select(obraSelector, valorObra);
         console.log(`Obra "${nomeObra}" selecionada.`);
 
         // 4. Aplicar filtro de "Enviados" e pesquisar
-        const enviadosCheckboxSelector = '.panel-body input[ng-model="FiltrosEnviado"]';
+        const enviadosCheckboxSelector =
+          '.panel-body input[ng-model="FiltrosEnviado"]';
         await page.waitForSelector(enviadosCheckboxSelector, { visible: true });
-        const isChecked = await page.$eval(enviadosCheckboxSelector, (el) => el.checked);
+        const isChecked = await page.$eval(
+          enviadosCheckboxSelector,
+          (el) => el.checked
+        );
 
         if (!isChecked) {
-          console.log('Marcando a caixa "Enviados" para filtrar e iniciar a pesquisa...');
+          console.log(
+            'Marcando a caixa "Enviados" para filtrar e iniciar a pesquisa...'
+          );
           // Clicar na caixa de seleção aciona a função getDocumentos() e já inicia a pesquisa
           await page.click(enviadosCheckboxSelector);
         } else {
@@ -116,14 +144,22 @@ export async function baixarDocumentosColaboradores(browser, page, empresasParaE
 
         // 5. Aguardar os resultados da pesquisa
         console.log('Aguardando resultados da pesquisa...');
-        await page.waitForNetworkIdle({ idleTime: 1000, timeout: 20000 }).catch(() => {
-          console.log('A rede não ficou ociosa, mas o script continuará.');
-        });
+        await page
+          .waitForNetworkIdle({ idleTime: 1000, timeout: 20000 })
+          .catch(() => {
+            console.log('A rede não ficou ociosa, mas o script continuará.');
+          });
 
         // --- DEBUG ---
         // Salva um screenshot e o HTML da página para análise após a pesquisa.
-        const debugScreenshotPath = path.join(debugDir, `${empresaSanitizada}_${obraSanitizada}.png`);
-        const debugHtmlPath = path.join(debugDir, `${empresaSanitizada}_${obraSanitizada}.html`);
+        const debugScreenshotPath = path.join(
+          debugDir,
+          `${empresaSanitizada}_${obraSanitizada}.png`
+        );
+        const debugHtmlPath = path.join(
+          debugDir,
+          `${empresaSanitizada}_${obraSanitizada}.html`
+        );
         console.log(`Salvando screenshot de debug em: ${debugScreenshotPath}`);
         await page.screenshot({ path: debugScreenshotPath, fullPage: true });
         fs.writeFileSync(debugHtmlPath, await page.content());
@@ -143,9 +179,13 @@ export async function baixarDocumentosColaboradores(browser, page, empresasParaE
           // Verifica se a mensagem "Nenhum registro encontrado" está presente
           const noResultsHandle = await page.$(noResultsSelector);
           if (noResultsHandle) {
-            const noResultsText = await noResultsHandle.evaluate((el) => el.innerText);
+            const noResultsText = await noResultsHandle.evaluate(
+              (el) => el.innerText
+            );
             if (noResultsText.includes('Nenhum registro encontrado')) {
-              console.log(`Nenhum documento encontrado para ${nomeEmpresa} | ${nomeObra}. Pulando.`);
+              console.log(
+                `Nenhum documento encontrado para ${nomeEmpresa} | ${nomeObra}. Pulando.`
+              );
               continue; // Pula para a próxima iteração do loop de obras
             }
           }
@@ -175,13 +215,17 @@ export async function baixarDocumentosColaboradores(browser, page, empresasParaE
           console.log('Mapeamento de colunas detectado:', columnMap);
 
           const rows = await page.$$(`${tableSelector} tbody tr[ng-repeat]`);
-          console.log(`Encontradas ${rows.length} linhas de documentos para ${nomeEmpresa} | ${nomeObra}.`);
+          console.log(
+            `Encontradas ${rows.length} linhas de documentos para ${nomeEmpresa} | ${nomeObra}.`
+          );
 
           let nomeColaboradorAtual = '';
 
           for (let i = 0; i < rows.length; i++) {
             // Re-seleciona os elementos a cada iteração para evitar Stale Element Reference
-            const currentRow = (await page.$$(`${tableSelector} tbody tr[ng-repeat]`))[i];
+            const currentRow = (
+              await page.$$(`${tableSelector} tbody tr[ng-repeat]`)
+            )[i];
             if (!currentRow) continue;
 
             const rowData = await currentRow.evaluate((el, map) => {
@@ -210,70 +254,103 @@ export async function baixarDocumentosColaboradores(browser, page, empresasParaE
 
             // A abordagem de encontrar e clicar é movida para dentro de um único page.evaluate
             // para ser mais robusta contra problemas de timing em aplicações AngularJS.
-            const clickResult = await currentRow.evaluate((row, arquivoColumnIndex) => {
-              // Alvo corrigido: usa o índice da coluna "Arquivos" encontrado dinamicamente
-              const cell = row.querySelector(`td:nth-child(${arquivoColumnIndex})`);
-              if (!cell) {
+            const clickResult = await currentRow.evaluate(
+              (row, arquivoColumnIndex) => {
+                // Alvo corrigido: usa o índice da coluna "Arquivos" encontrado dinamicamente
+                const cell = row.querySelector(
+                  `td:nth-child(${arquivoColumnIndex})`
+                );
+                if (!cell) {
+                  return {
+                    clicked: false,
+                    error: `Célula de Arquivos (TD ${arquivoColumnIndex}) não encontrada.`,
+                  };
+                }
+                const icon = cell.querySelector(
+                  'i.fa-search[ng-click*="ProcessaArquivo"]'
+                );
+                if (icon) {
+                  icon.click(); // Clica no ícone encontrado
+                  return { clicked: true, error: null };
+                }
                 return {
                   clicked: false,
-                  error: `Célula de Arquivos (TD ${arquivoColumnIndex}) não encontrada.`,
+                  error: 'Ícone de pesquisa não encontrado na célula.',
+                  cellHTML: cell.innerHTML,
                 };
-              }
-              const icon = cell.querySelector('i.fa-search[ng-click*="ProcessaArquivo"]');
-              if (icon) {
-                icon.click(); // Clica no ícone encontrado
-                return { clicked: true, error: null };
-              }
-              return {
-                clicked: false,
-                error: 'Ícone de pesquisa não encontrado na célula.',
-                cellHTML: cell.innerHTML,
-              };
-            }, columnMap['ARQUIVOS']); // Passa o índice da coluna "Arquivos"
+              },
+              columnMap['ARQUIVOS']
+            ); // Passa o índice da coluna "Arquivos"
 
             // Log de depuração para cada linha, mostrando os dados extraídos.
             console.log(
-              `[Linha ${i + 1}/${rows.length}] Colab.: "${nomeColaboradorAtual}" | Arquivo: "${
+              `[Linha ${i + 1}/${
+                rows.length
+              }] Colab.: "${nomeColaboradorAtual}" | Arquivo: "${
                 rowData.arquivoCellText
               }" | Tentativa de Clique no Ícone: ${clickResult.clicked}`
             );
 
             if (!clickResult.clicked) {
               console.error(`   - Falha ao clicar: ${clickResult.error}`);
-              console.log(`   - Conteúdo da Célula 4 no momento da falha: ${clickResult.cellHTML}`);
+              console.log(
+                `   - Conteúdo da Célula 4 no momento da falha: ${clickResult.cellHTML}`
+              );
             }
 
             // Prossegue apenas se o ícone foi encontrado e clicado com sucesso.
             if (clickResult.clicked) {
               const modalSelector = 'md-dialog';
               try {
-                console.log(`   -> Tentando abrir modal para "${rowData.arquivoCellText}"...`);
+                console.log(
+                  `   -> Tentando abrir modal para "${rowData.arquivoCellText}"...`
+                );
                 // O clique já foi feito, agora apenas esperamos o resultado (o modal aparecer).
-                await page.waitForSelector(modalSelector, { visible: true, timeout: 15000 });
+                await page.waitForSelector(modalSelector, {
+                  visible: true,
+                  timeout: 15000,
+                });
                 console.log('   - Modal de visualização aberto.');
 
-                const fileElementSelector = 'md-dialog iframe[ng-src], md-dialog img[ng-src]';
-                await page.waitForSelector(fileElementSelector, { timeout: 10000 });
+                const fileElementSelector =
+                  'md-dialog iframe[ng-src], md-dialog img[ng-src]';
+                await page.waitForSelector(fileElementSelector, {
+                  timeout: 10000,
+                });
 
-                const relativeSrc = await page.$eval(fileElementSelector, (el) => el.getAttribute('src'));
+                const relativeSrc = await page.$eval(
+                  fileElementSelector,
+                  (el) => el.getAttribute('src')
+                );
                 const fileUrl = new URL(relativeSrc, page.url()).href;
                 console.log(`   - URL do arquivo encontrada: ${fileUrl}`);
 
                 const fileExtension = path.extname(new URL(fileUrl).pathname);
                 // Sanitiza a descrição do arquivo da tabela para usar como nome de arquivo.
                 // Removemos o path.basename, pois ele interpreta '/' como separador de diretório no Windows, causando nomes incorretos.
-                const sanitizedFilename = rowData.arquivoCellText.replace(/[\\/:*?"<>|]/g, '-');
+                const sanitizedFilename = rowData.arquivoCellText.replace(
+                  /[\\/:*?"<>|]/g,
+                  '-'
+                );
                 const finalFilename = `${sanitizedFilename}${fileExtension}`;
 
                 // Cria o caminho de download final, incluindo o nome do colaborador.
-                const nomeColaboradorSanitizado = toTitleCase(nomeColaboradorAtual).replace(
-                  /[\/\\?%*:|"<>]/g,
-                  '-'
+                const nomeColaboradorSanitizado = toTitleCase(
+                  nomeColaboradorAtual
+                ).replace(/[\/\\?%*:|"<>]/g, '-');
+                const colaboradorDownloadDir = path.join(
+                  empresaDownloadDir,
+                  nomeColaboradorSanitizado
                 );
-                const colaboradorDownloadDir = path.join(obraDownloadDir, nomeColaboradorSanitizado);
 
                 // Reutiliza a função de utilitário para baixar e salvar o arquivo
-                await baixarArquivo(browser, page, colaboradorDownloadDir, fileUrl, finalFilename);
+                await baixarArquivo(
+                  browser,
+                  page,
+                  colaboradorDownloadDir,
+                  fileUrl,
+                  finalFilename
+                );
               } catch (downloadError) {
                 console.error(
                   `   - ERRO no processo do documento "${rowData.arquivoCellText}": ${downloadError.message}`
@@ -282,10 +359,16 @@ export async function baixarDocumentosColaboradores(browser, page, empresasParaE
               } finally {
                 // Garante que o modal seja fechado, mesmo em caso de erro
                 try {
-                  const closeButtonSelector = 'md-dialog i.fa-times[ng-click="hide()"]';
-                  await page.waitForSelector(closeButtonSelector, { timeout: 5000 });
+                  const closeButtonSelector =
+                    'md-dialog i.fa-times[ng-click="hide()"]';
+                  await page.waitForSelector(closeButtonSelector, {
+                    timeout: 5000,
+                  });
                   await page.click(closeButtonSelector);
-                  await page.waitForSelector(modalSelector, { hidden: true, timeout: 10000 });
+                  await page.waitForSelector(modalSelector, {
+                    hidden: true,
+                    timeout: 10000,
+                  });
                   console.log('   - Modal fechado.');
                 } catch (closeError) {
                   console.warn(
@@ -306,7 +389,10 @@ export async function baixarDocumentosColaboradores(browser, page, empresasParaE
           }
         }
       } catch (error) {
-        console.error(`Ocorreu um erro ao processar a combinação "${nomeEmpresa}" / "${nomeObra}":`, error);
+        console.error(
+          `Ocorreu um erro ao processar a combinação "${nomeEmpresa}" / "${nomeObra}":`,
+          error
+        );
         console.log('Continuando para a próxima combinação...');
       }
     }
