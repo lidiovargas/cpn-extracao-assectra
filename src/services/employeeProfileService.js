@@ -1,4 +1,8 @@
-import { salvarDadosJSON, salvarComoExcel, baixarImagem } from '../utils/fileUtils.js';
+import {
+  salvarDadosJSON,
+  salvarComoExcel,
+  baixarImagem,
+} from '../utils/fileUtils.js';
 import { toTitleCase } from '../utils/formatter.js';
 import fs from 'fs';
 import path from 'path';
@@ -9,7 +13,11 @@ import path from 'path';
  * @param {object} page - A instância da página do Puppeteer.
  * @param {Array<string>} empresasParaExtrair - Lista com os nomes das empresas.
  */
-export async function extrairDadosColaboradores(browser, page, empresasParaExtrair) {
+export async function extrairDadosColaboradores(
+  browser,
+  page,
+  empresasParaExtrair
+) {
   const outputSubfolder = 'employee-profiles';
   const baseOutputDir = path.join('output', outputSubfolder);
   // Limpa e recria o diretório de debug no início da execução.
@@ -35,7 +43,9 @@ export async function extrairDadosColaboradores(browser, page, empresasParaExtra
       console.log('Aguardando a empresa aparecer no dropdown...');
       const valorEmpresaHandle = await page.waitForFunction(
         (nome) => {
-          const el = document.querySelector('select[ng-model="FiltrosEmpreiteiro_id"]');
+          const el = document.querySelector(
+            'select[ng-model="FiltrosEmpreiteiro_id"]'
+          );
           if (!el) return false; // Garante que o select exista
           const optionEncontrada = Array.from(el.options).find(
             (opt) => opt.innerText.trim().toUpperCase() === nome.toUpperCase()
@@ -52,11 +62,15 @@ export async function extrairDadosColaboradores(browser, page, empresasParaExtra
         e.stack
       }\n\n`;
       fs.appendFileSync(errorLogPath, logMessage);
-      console.error(`Erro de timeout ao procurar a empresa. Detalhes em ${errorLogPath}`);
+      console.error(
+        `Erro de timeout ao procurar a empresa. Detalhes em ${errorLogPath}`
+      );
     }
 
     if (!valorEmpresa) {
-      console.warn(`A empresa "${nomeEmpresa}" não foi encontrada no dropdown após aguardar. Pulando...`);
+      console.warn(
+        `A empresa "${nomeEmpresa}" não foi encontrada no dropdown após aguardar. Pulando...`
+      );
       continue;
     }
 
@@ -66,15 +80,20 @@ export async function extrairDadosColaboradores(browser, page, empresasParaExtra
     console.log('Clicando no botão "Pesquisar"...');
     await page.click('button[ng-click="Pesquisar()"]');
     await page.waitForResponse(
-      (response) => response.url().includes('/api/v1/colaboradores') && response.status() === 200
+      (response) =>
+        response.url().includes('/api/v1/colaboradores') &&
+        response.status() === 200
     );
 
     const tableSelector = 'table.table-hover';
     await page.waitForSelector(tableSelector, { visible: true });
 
     // Pega a contagem total de colaboradores para o log de progresso.
-    const totalCount = (await page.$$('a[ng-click^="EditarColaborador"]')).length;
-    console.log(`Encontrados ${totalCount} colaboradores para a empresa ${nomeEmpresa}.`);
+    const totalCount = (await page.$$('a[ng-click^="EditarColaborador"]'))
+      .length;
+    console.log(
+      `Encontrados ${totalCount} colaboradores para a empresa ${nomeEmpresa}.`
+    );
 
     const todosOsDados = [];
 
@@ -91,13 +110,19 @@ export async function extrairDadosColaboradores(browser, page, empresasParaExtra
         break;
       }
 
-      const nomeColaborador = await links[i].evaluate((el) => el.innerText.trim());
-      console.log(`Processando colaborador ${i + 1}/${totalCount}: ${nomeColaborador}`);
+      const nomeColaborador = await links[i].evaluate((el) =>
+        el.innerText.trim()
+      );
+      console.log(
+        `Processando colaborador ${i + 1}/${totalCount}: ${nomeColaborador}`
+      );
 
       // --- Lógica de clique robusta ---
       const linkToClick = links[i];
       // 1. Rola o elemento para o centro da tela para garantir que ele esteja visível e não obstruído.
-      await linkToClick.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await linkToClick.evaluate((el) =>
+        el.scrollIntoView({ block: 'center' })
+      );
       // 2. Uma pequena pausa para garantir que a interface tenha tempo de se estabilizar após a rolagem.
       await new Promise((r) => setTimeout(r, 200));
       // 3. Executa o clique.
@@ -114,7 +139,9 @@ export async function extrairDadosColaboradores(browser, page, empresasParaExtra
         console.log('Aguardando dados do colaborador no modal...');
         await page.waitForFunction(
           () => {
-            const nomeInput = document.querySelector('input[ng-model="Colaborador.Nome"]');
+            const nomeInput = document.querySelector(
+              'input[ng-model="Colaborador.Nome"]'
+            );
             // A função tentará novamente até que o valor do input não seja uma string vazia.
             return nomeInput && nomeInput.value.trim() !== '';
           },
@@ -130,11 +157,21 @@ export async function extrairDadosColaboradores(browser, page, empresasParaExtra
             return null;
           };
 
-          const nome = document.querySelector('input[ng-model="Colaborador.Nome"]')?.value;
-          const cpf = document.querySelector('input[ng-model="Colaborador.CPF"]')?.value;
-          const empresa = getSelectedText('select[ng-model="Colaborador.Empreiteiro_id"]');
-          const funcao = getSelectedText('select[ng-model="Colaborador.Funcao_id"]');
-          const imageUrl = document.querySelector('img#FotoReconhecimento')?.src;
+          const nome = document.querySelector(
+            'input[ng-model="Colaborador.Nome"]'
+          )?.value;
+          const cpf = document.querySelector(
+            'input[ng-model="Colaborador.CPF"]'
+          )?.value;
+          const empresa = getSelectedText(
+            'select[ng-model="Colaborador.Empreiteiro_id"]'
+          );
+          const funcao = getSelectedText(
+            'select[ng-model="Colaborador.Funcao_id"]'
+          );
+          const imageUrl = document.querySelector(
+            'img#FotoReconhecimento'
+          )?.src;
 
           return { Nome: nome, cpf, empresa, funcao, imageUrl };
         });
@@ -154,6 +191,7 @@ export async function extrairDadosColaboradores(browser, page, empresasParaExtra
           // para que as imagens sejam salvas em 'output/employee-profile/images/...'
           await baixarImagem(
             browser,
+            page, // Passa a página principal para herdar a sessão
             baseOutputDir,
             dadosFormatados.imageUrl,
             nomeEmpresa,
@@ -162,15 +200,27 @@ export async function extrairDadosColaboradores(browser, page, empresasParaExtra
         }
 
         //DEBUG
-        await page.screenshot({ path: path.join(debugDir, `passo_${i}_1_preescape.png`), fullPage: true });
-        fs.writeFileSync(path.join(debugDir, `passo_${i}_1_preescape.html`), await page.content());
+        await page.screenshot({
+          path: path.join(debugDir, `passo_${i}_1_preescape.png`),
+          fullPage: true,
+        });
+        fs.writeFileSync(
+          path.join(debugDir, `passo_${i}_1_preescape.html`),
+          await page.content()
+        );
 
         await page.keyboard.press('Escape');
         await page.waitForSelector(modalContentSelector, { hidden: true });
 
         //DEBUG
-        await page.screenshot({ path: path.join(debugDir, `passo_${i}_2_postescape.png`), fullPage: true });
-        fs.writeFileSync(path.join(debugDir, `passo_${i}_2_postescape.html`), await page.content());
+        await page.screenshot({
+          path: path.join(debugDir, `passo_${i}_2_postescape.png`),
+          fullPage: true,
+        });
+        fs.writeFileSync(
+          path.join(debugDir, `passo_${i}_2_postescape.html`),
+          await page.content()
+        );
 
         // CORREÇÃO CRÍTICA: Espera o 'backdrop' do modal desaparecer completamente
         // para evitar que ele intercepte o próximo clique.
@@ -178,13 +228,20 @@ export async function extrairDadosColaboradores(browser, page, empresasParaExtra
 
         // ESPERA ADICIONAL: Aguarda a rede ficar ociosa. Isso é um forte sinal
         // de que as animações e chamadas de API de fechamento do modal terminaram.
-        await page.waitForNetworkIdle({ idleTime: 500, timeout: 7000 }).catch(() => {
-          console.log('A rede não ficou ociosa, mas o script continuará.');
-        });
+        await page
+          .waitForNetworkIdle({ idleTime: 500, timeout: 7000 })
+          .catch(() => {
+            console.log('A rede não ficou ociosa, mas o script continuará.');
+          });
 
         // NOVA CORREÇÃO: Espera por um possível spinner de carregamento desaparecer.
         // A aplicação pode ficar ocupada por um instante após fechar o modal.
-        await page.waitForSelector('md-progress-circular', { hidden: true, timeout: 5000 }).catch(() => {});
+        await page
+          .waitForSelector('md-progress-circular', {
+            hidden: true,
+            timeout: 5000,
+          })
+          .catch(() => {});
 
         // LÓGICA DE LIMPEZA: Garante que a página volte a um estado interativo.
         await page.evaluate(() => {
@@ -210,8 +267,12 @@ export async function extrairDadosColaboradores(browser, page, empresasParaExtra
         // Sem isso, a página volta para a lista padrão e o loop falha.
         try {
           console.log(`Reaplicando filtro para a empresa: ${nomeEmpresa}...`);
-          const empreiteiroSelector = 'select[ng-model="FiltrosEmpreiteiro_id"]';
-          await page.waitForSelector(empreiteiroSelector, { visible: true, timeout: 20000 });
+          const empreiteiroSelector =
+            'select[ng-model="FiltrosEmpreiteiro_id"]';
+          await page.waitForSelector(empreiteiroSelector, {
+            visible: true,
+            timeout: 20000,
+          });
           await page.select(empreiteiroSelector, valorEmpresa);
 
           const filterButtonSelector = 'button[ng-click="Pesquisar()"]';
@@ -231,9 +292,15 @@ export async function extrairDadosColaboradores(browser, page, empresasParaExtra
           // Aguarda a tabela ser recarregada com os dados corretos
           console.log('Aguardando tabela de colaboradores ser atualizada...');
           await page
-            .waitForSelector('md-progress-circular', { hidden: true, timeout: 20000 })
+            .waitForSelector('md-progress-circular', {
+              hidden: true,
+              timeout: 20000,
+            })
             .catch(() => {});
-          await page.waitForSelector(tableSelector, { visible: true, timeout: 20000 });
+          await page.waitForSelector(tableSelector, {
+            visible: true,
+            timeout: 20000,
+          });
         } catch (recoveryError) {
           const recoveryLogMessage = `[${new Date().toISOString()}] FALHA CRÍTICA na empresa "${nomeEmpresa}" ao tentar recuperar o estado após um erro.\nErro: ${
             recoveryError.stack

@@ -14,7 +14,10 @@ export function salvarDadosJSON(outputSubfolder, nomeEmpresa, dados) {
     fs.mkdirSync(outputDir);
   }
 
-  const nomeArquivo = path.join(outputDir, `dados_${nomeEmpresa.replace(/ /g, '_')}.json`);
+  const nomeArquivo = path.join(
+    outputDir,
+    `dados_${nomeEmpresa.replace(/ /g, '_')}.json`
+  );
   fs.writeFileSync(nomeArquivo, JSON.stringify(dados, null, 2));
   console.log(`Dados JSON salvos em ${nomeArquivo}`);
 }
@@ -84,7 +87,10 @@ export function salvarComoExcel(outputSubfolder, nomeEmpresa, dados) {
   const workbook = xlsx.utils.book_new();
   xlsx.utils.book_append_sheet(workbook, worksheet, 'Colaboradores');
 
-  const nomeArquivo = path.join(outputDir, `dados_${nomeEmpresa.replace(/ /g, '_')}.xlsx`);
+  const nomeArquivo = path.join(
+    outputDir,
+    `dados_${nomeEmpresa.replace(/ /g, '_')}.xlsx`
+  );
   xlsx.writeFile(workbook, nomeArquivo, { cellStyles: true });
   console.log(`Planilha Excel salva em ${nomeArquivo}`);
 }
@@ -92,32 +98,71 @@ export function salvarComoExcel(outputSubfolder, nomeEmpresa, dados) {
 /**
  * Baixa a imagem de um colaborador.
  * @param {object} browser - A instância do navegador Puppeteer.
- * @param {object} page - A instância da página do Puppeteer.
+ * @param {object} page - A instância da página principal para herdar a sessão (cookies, referer).
  * @param {string} imageUrl - A URL da imagem a ser baixada.
  * @param {string} nomeEmpresa - O nome da empresa para criar a subpasta.
  * @param {string} nomeColaborador - O nome do colaborador para nomear o arquivo.
  */
-export async function baixarImagem(browser, outputSubfolder, imageUrl, nomeEmpresa, nomeColaborador) {
+export async function baixarImagem(
+  browser,
+  page,
+  outputSubfolder,
+  imageUrl,
+  nomeEmpresa,
+  nomeColaborador
+) {
   let imagePage = null;
   try {
+    const cookies = await page.cookies();
     imagePage = await browser.newPage();
-    const viewSource = await imagePage.goto(imageUrl);
-    const buffer = await viewSource.buffer();
+    await imagePage.setCookie(...cookies);
+    await imagePage.setExtraHTTPHeaders({ Referer: page.url() });
+    await imagePage.setUserAgent(await browser.userAgent());
 
-    const empresaDir = path.join(outputSubfolder, nomeEmpresa.replace(/[\/\\?%*:|"<>]/g, '-'));
-    if (!fs.existsSync(empresaDir)) {
-      fs.mkdirSync(empresaDir, { recursive: true });
+    const response = await imagePage.goto(imageUrl, {
+      // 'load' é mais adequado para downloads de arquivos do que 'networkidle0'.
+      waitUntil: 'load',
+      timeout: 120000, // Aumentado para 2 minutos para imagens grandes/lentas.
+    });
+
+    if (!response.ok()) {
+      throw new Error(
+        `Falha ao buscar a imagem: ${response.status()} ${response.statusText()}`
+      );
     }
+
+    const contentType = response.headers()['content-type'];
+    if (!contentType || !contentType.startsWith('image/')) {
+      throw new Error(
+        `Conteúdo inesperado (${
+          contentType || 'unknown'
+        }) em vez de uma imagem.`
+      );
+    }
+
+    const buffer = await response.buffer();
+
+    const empresaDir = path.join(
+      outputSubfolder,
+      nomeEmpresa.replace(/[\/\\?%*:|"<>]/g, '-')
+    );
+    fs.mkdirSync(empresaDir, { recursive: true });
 
     const nomeFormatado = toTitleCase(nomeColaborador)
       .replace(/[\/\\?%*:|"<>]/g, '-')
       .replace(/ /g, '_');
-    const caminhoArquivo = path.join(empresaDir, `${nomeFormatado}.jpeg`);
+    const extension = (contentType.split('/')[1] || 'jpg').split('+')[0]; // Pega 'jpeg' de 'image/jpeg' ou 'svg' de 'image/svg+xml'
+    const caminhoArquivo = path.join(
+      empresaDir,
+      `${nomeFormatado}.${extension}`
+    );
 
     fs.writeFileSync(caminhoArquivo, buffer);
     console.log(`Imagem salva em: ${caminhoArquivo}`);
   } catch (error) {
-    console.error(`Falha ao baixar imagem para ${nomeColaborador}: ${error.message}`);
+    console.error(
+      `Falha ao baixar imagem para ${nomeColaborador}: ${error.message}`
+    );
   } finally {
     if (imagePage) {
       await imagePage.close();
@@ -135,39 +180,71 @@ export async function baixarImagem(browser, outputSubfolder, imageUrl, nomeEmpre
  * @param {string} finalFilename - O nome final do arquivo (com extensão).
  * @returns {Promise<boolean>} - Retorna true em caso de sucesso, false em caso de falha.
  */
-export async function baixarArquivo(browser, page, downloadDir, fileUrl, finalFilename) {
-  let downloadPage = null;
+export async function baixarArquivo(
+  browser,
+  page,
+  downloadDir,
+  fileUrl,
+  finalFilename
+) {
   try {
-    // 1. Pega os cookies da página principal, que contém a sessão de login.
-    const cookies = await page.cookies();
+    // Estratégia: Usa page.evaluate para rodar `fetch` no contexto do navegador.
+    // Isso herda a sessão de login (cookies) e evita problemas de navegação e timeouts.
+    // A função é reescrita sem 'async/await' para evitar problemas de transpilação
+    // que podem causar o erro 'ReferenceError: _ref is not defined'.
+    const base64Data = await page.evaluate((url) => {
+      return fetch(url)
+        .then((response) => {
+          if (!response.ok) {
+            // Lança um erro que será capturado pelo .catch() do evaluate
+            throw new Error(
+              `Falha na requisição de rede: ${response.status} ${response.statusText}`
+            );
+          }
+          return response.blob();
+        })
+        .then((blob) => {
+          // Converte o blob para base64
+          return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              // reader.result é uma string 'data:<mime>;base64,<data>'
+              // Pegamos apenas a parte dos dados.
+              const data = reader.result.split(',')[1];
+              resolve(data);
+            };
+            reader.onerror = () => {
+              reject(new Error('Erro do FileReader ao ler o arquivo.'));
+            };
+            reader.readAsDataURL(blob);
+          });
+        });
+    }, fileUrl);
 
-    downloadPage = await browser.newPage();
-
-    // 2. Define os cookies na nova página. Isso é crucial para autenticação.
-    await downloadPage.setCookie(...cookies);
-
-    // 3. Define o cabeçalho Referer. Isso faz a requisição parecer que veio da página principal,
-    // o que é um forte mecanismo de defesa contra "hotlinking" e resolve o erro 403 Forbidden.
-    await downloadPage.setExtraHTTPHeaders({
-      Referer: page.url(),
-    });
-
-    // Herda o User-Agent da sessão principal para consistência e para evitar bloqueios.
-    await downloadPage.setUserAgent(await browser.userAgent());
-
-    // Altera o waitUntil para 'load', que é mais adequado para downloads de arquivos, e aumenta o timeout.
-    const response = await downloadPage.goto(fileUrl, { waitUntil: 'load', timeout: 60000 });
-
-    if (!response.ok()) {
-      throw new Error(`Falha ao buscar o arquivo: ${response.status()} ${response.statusText()}`);
+    if (!base64Data) {
+      throw new Error(
+        'Não foi possível obter os dados do arquivo (base64 vazio).'
+      );
     }
 
-    const buffer = await response.buffer();
+    const buffer = Buffer.from(base64Data, 'base64');
+
+    // Validação do "Magic Number" para PDFs.
+    if (finalFilename.toLowerCase().endsWith('.pdf')) {
+      if (
+        !buffer ||
+        buffer.length < 8 ||
+        !buffer.toString('utf8', 0, 5).startsWith('%PDF-')
+      ) {
+        const preview = buffer.toString('utf8', 0, 200);
+        throw new Error(
+          `O conteúdo baixado não é um PDF válido. Início do conteúdo: "${preview}..."`
+        );
+      }
+    }
 
     // Garante que o diretório de destino exista
-    if (!fs.existsSync(downloadDir)) {
-      fs.mkdirSync(downloadDir, { recursive: true });
-    }
+    fs.mkdirSync(downloadDir, { recursive: true });
 
     const filePath = path.join(downloadDir, finalFilename);
     fs.writeFileSync(filePath, buffer);
@@ -175,11 +252,11 @@ export async function baixarArquivo(browser, page, downloadDir, fileUrl, finalFi
     console.log(`   - SUCESSO: Arquivo salvo como "${finalFilename}"`);
     return true;
   } catch (error) {
-    console.error(`   - ERRO ao baixar o arquivo "${finalFilename}": ${error.message}`);
+    // O erro de `evaluate` pode ser um objeto serializado ou uma string, não uma instância de Error.
+    const errorMessage = error.message || String(error);
+    console.error(
+      `   - ERRO ao baixar o arquivo "${finalFilename}": ${errorMessage}`
+    );
     return false;
-  } finally {
-    if (downloadPage) {
-      await downloadPage.close();
-    }
   }
 }
