@@ -4,8 +4,8 @@ import path from 'path';
 import puppeteer from 'puppeteer-core';
 import { extrairDadosColaboradores } from './services/employeeProfileService.js';
 import { baixarDocumentosColaboradores } from './services/employeeDocumentService.js';
+import { loadConfig } from './config/loader.js';
 import { login } from './auth/login.js';
-import { empresasParaExtrair } from './config/companies.js';
 
 /**
  * Função principal que executa o processo de web scraping.
@@ -39,7 +39,7 @@ async function main() {
     process.exit(1);
   }
 
-  // --- PARÂMETROS ADICIONAIS (PAGINAÇÃO) ---
+  // --- PARÂMETROS ADICIONAIS ---
   const args = process.argv.slice(3); // Pega argumentos extras, como --start-page=1
   const options = {};
   args.forEach((arg) => {
@@ -49,7 +49,12 @@ async function main() {
     if (arg.startsWith('--end-page=')) {
       options.endPage = parseInt(arg.split('=')[1], 10);
     }
+    // Os argumentos de arquivo são lidos pelo loader, não precisam ser armazenados aqui.
   });
+
+  // Carrega as configurações de empresas e obras de forma dinâmica
+  const { empresas: empresasParaExtrair, obras: obrasParaExtrair } = loadConfig(process.argv);
+
   if (options.startPage) {
     console.log(`Iniciando a partir da página: ${options.startPage}`);
   }
@@ -103,7 +108,7 @@ async function main() {
 
     // --- ETAPA DE EXTRAÇÃO DE DADOS ---
     // Executa a tarefa selecionada a partir do mapa, passando os argumentos necessários.
-    await taskFunction(browser, page, empresasParaExtrair, options);
+    await taskFunction(browser, page, { empresasParaExtrair, obrasParaExtrair }, options);
   } catch (error) {
     console.error('Ocorreu um erro durante a execução:', error);
     const errorScreenshotPath = path.resolve('output', 'error_screenshot.png');

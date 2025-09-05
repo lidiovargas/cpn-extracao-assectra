@@ -5,7 +5,7 @@ node_modules/
 output/
 html/
 dist/
-
+config/**
 
 # Logs
 logs

@@ -42,7 +42,10 @@ const createLogOverride = (level, originalFunc) => {
  */
 export function setupLogger(logFilePath) {
   fs.mkdirSync(path.dirname(logFilePath), { recursive: true });
-  fs.writeFileSync(logFilePath, `Log da execução em ${new Date().toISOString()}\n\n`);
+  // Em vez de sobrescrever o arquivo com writeFileSync, usamos appendFileSync.
+  // Isso irá criar o arquivo se ele não existir, ou adicionar ao final se já existir.
+  // Adicionamos uma linha separadora para distinguir as execuções no mesmo arquivo.
+  fs.appendFileSync(logFilePath, `\n--- Nova execução em ${new Date().toISOString()} ---\n\n`);
   logStream = fs.createWriteStream(logFilePath, { flags: 'a' });
 
   console.log = createLogOverride('info', originalConsole.log);

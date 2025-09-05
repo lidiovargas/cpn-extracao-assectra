@@ -14,6 +14,7 @@ services:
     # Em produção, não mapeamos o código-fonte. Ele já está "assado" na imagem.
     # Mapeamos apenas a pasta de saída.
     volumes:
+      - ./config:/usr/src/app/config
       - ./output:/usr/src/app/output
 
   # --- SERVIÇO DE DESENVOLVIMENTO (ativado com --profile dev) ---
@@ -33,5 +34,6 @@ services:
     volumes:
       # Mapeia o código-fonte para hot-reloading com nodemon.
       - ./src:/usr/src/app/src
+      - ./config:/usr/src/app/config
       # Mapeia a pasta de saída.
       - ./output:/usr/src/app/output

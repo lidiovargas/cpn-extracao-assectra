@@ -1,7 +1,6 @@
 import fs from 'fs';
 import path from 'path';
 import { URL } from 'url';
-import { obrasParaExtrair } from '../config/plantas.js';
 import { setupLogger, closeLogger } from '../utils/logger.js';
 import { baixarArquivo } from '../utils/fileUtils.js';
 import { toTitleCase } from '../utils/formatter.js';
@@ -10,12 +9,15 @@ import { toTitleCase } from '../utils/formatter.js';
  * Navega para a página de acervo digital e baixa os documentos dos colaboradores.
  * @param {object} browser - A instância do navegador Puppeteer.
  * @param {object} page - A instância da página do Puppeteer.
- * @param {Array<string>} empresasParaExtrair - Lista com os nomes das empresas.
+ * @param {object} config - Objeto de configuração.
+ * @param {Array<string>} config.empresasParaExtrair - Lista com os nomes das empresas.
+ * @param {Array<string>} config.obrasParaExtrair - Lista com os nomes das obras.
  * @param {object} options - Opções adicionais, como paginação.
  * @param {number} [options.startPage=1] - A página por onde começar.
  * @param {number} [options.endPage] - A página onde parar (inclusiva).
  */
-export async function baixarDocumentosColaboradores(browser, page, empresasParaExtrair, options = {}) {
+export async function baixarDocumentosColaboradores(browser, page, config, options = {}) {
+  const { empresasParaExtrair, obrasParaExtrair } = config;
   const { startPage = 1, endPage = Infinity } = options;
 
   const baseDownloadDir = path.resolve('output', 'employee-documents');

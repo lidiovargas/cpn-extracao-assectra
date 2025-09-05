@@ -35,6 +35,51 @@ docker compose run --rm scraper npm run employees:documents -- --start-page=6
 docker compose run --rm scraper npm run companies:documents
 ```
 
+# Configuração de empresas e obras
+
+Crie uma pasta `./config` no contexto do projeto:
+
+```bash
+mkdir config
+```
+
+Crie um arquivo para empresas, chamado `companies.js`:
+
+```javascript
+// Lista de empresas para extração.
+// O nome deve ser EXATAMENTE como aparece no dropdown do site.
+module.exports = [
+  // ----- 100% exportados por employess:documents -----
+  // 'FJ CONSTRUÇÕES',
+  // 'ENGEMIX CONCRETO',
+  // 'SONDOSOLO',
+  // 'CONCRE - TEST',
+  // ------ Exportação pendente ------
+  // 'RILE CONSTRUÇÕES ELETRICAS EIRELI',
+  'MULTIPAV TERRAPLENAGEM',
+  // 'GUILHERME DA SILVA GONGRA DE OLIVEIRA',
+  // 'CONCRELONGO',
+  // 'BG TOPOGRAFIA',
+  // 'BV SERRALHERIA',
+  // 'TRANSPESSIN',
+];
+```
+
+Crie um arquivo para obras, chamado `plantas.js`:
+
+```javascript
+module.exports = [
+  // ---- exportados ---
+  'BELFORT',
+  'CHAMONIX',
+  'JESUINO',
+  'LAKE',
+  'MULTIUSO CAMBUI PARTICIPAÇÕES',
+  // --- pendentes ---
+  // ...
+];
+```
+
 # Como Depurar Scripts do Puppeteer (Headless)
 
 1. Tirar "Fotos" da Tela (Screenshots): Esta é a técnica mais poderosa. Em qualquer ponto do seu script, você pode adicionar a linha `await page.screenshot({ path: 'output/debug_passo_X.png', fullPage: true });` para salvar uma imagem do que o navegador headless está "vendo". Como já mapeamos a pasta output, a imagem aparecerá instantaneamente no seu computador.

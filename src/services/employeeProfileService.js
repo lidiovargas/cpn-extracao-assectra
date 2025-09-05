@@ -8,9 +8,11 @@ import path from 'path';
  * Extrai os dados dos colaboradores de uma lista de empresas.
  * @param {object} browser - A instância do navegador Puppeteer.
  * @param {object} page - A instância da página do Puppeteer.
- * @param {Array<string>} empresasParaExtrair - Lista com os nomes das empresas.
+ * @param {object} config - Objeto de configuração.
+ * @param {Array<string>} config.empresasParaExtrair - Lista com os nomes das empresas.
  */
-export async function extrairDadosColaboradores(browser, page, empresasParaExtrair) {
+export async function extrairDadosColaboradores(browser, page, config) {
+  const { empresasParaExtrair } = config;
   const outputSubfolder = 'employee-profiles';
   const baseOutputDir = path.join('output', outputSubfolder);
   const logFilePath = path.join(baseOutputDir, 'log.txt');
