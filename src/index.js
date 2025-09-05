@@ -4,6 +4,7 @@ import path from 'path';
 import puppeteer from 'puppeteer-core';
 import { extrairDadosColaboradores } from './services/employeeProfileService.js';
 import { baixarDocumentosColaboradores } from './services/employeeDocumentService.js';
+import { baixarDocumentosEmpresas } from './services/companyDocumentService.js';
 import { loadConfig } from './config/loader.js';
 import { login } from './auth/login.js';
 
@@ -20,11 +21,9 @@ async function main() {
       documents: baixarDocumentosColaboradores,
     },
     companies: {
-      // Lógica futura para empresas
       profiles: async () =>
         console.log('(NÃO IMPLEMENTADO) Chamaria o serviço para "profiles" de "companies" aqui.'),
-      documents: async () =>
-        console.log('(NÃO IMPLEMENTADO) Chamaria o serviço para "documents" de "companies" aqui.'),
+      documents: baixarDocumentosEmpresas,
     },
   };
 
