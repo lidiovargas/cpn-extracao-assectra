@@ -31,6 +31,8 @@ docker compose run --rm scraper npm run employees:profiles
 # Exemplo para extrair documentos de colaboradores
 docker compose run --rm scraper npm run employees:documents
 docker compose run --rm scraper npm run employees:documents -- --start-page=6
+docker compose run --rm scraper npm run employees:documents -- --empresas-file=config/clientes_especiais.js
+docker compose run --rm scraper npm run employees:documents -- --obras-file=config/obras_especiais.js
 # TODO: Exemplo para extrair documentos de empresas
 docker compose run --rm scraper npm run companies:documents
 ```
