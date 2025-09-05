@@ -43,7 +43,7 @@ Crie uma pasta `./config` no contexto do projeto:
 mkdir config
 ```
 
-Crie um arquivo para empresas, chamado `companies.js`:
+Crie um arquivo para empresas, chamado `config/companies.js`:
 
 ```javascript
 // Lista de empresas para extração.
@@ -65,7 +65,7 @@ module.exports = [
 ];
 ```
 
-Crie um arquivo para obras, chamado `plantas.js`:
+Crie um arquivo para obras, chamado `config/plantas.js`:
 
 ```javascript
 module.exports = [
