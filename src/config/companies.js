@@ -1,7 +1,7 @@
 // Lista de empresas para extração.
 // O nome deve ser EXATAMENTE como aparece no dropdown do site.
 export const empresasParaExtrair = [
-  'FJ CONSTRUÇÕES', // falha
+  // 'FJ CONSTRUÇÕES', // falha
   // 'RILE CONSTRUÇÕES ELETRICAS EIRELI', // falha
   //   'ENGEMIX CONCRETO', // 100% |
   // 'SONDOSOLO', // 100% | planilhado
