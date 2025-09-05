@@ -1,14 +1,37 @@
+# Define uma âncora YAML com configurações comuns para reutilização
+x-common-config: &common-config
+  env_file:
+    - .env
+
 services:
+  # --- SERVIÇO DE PRODUÇÃO (padrão) ---
   scraper:
-    build: .
+    <<: *common-config # Reutiliza a configuração comum
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
     container_name: assectra_scraper
-    env_file:
-      - .env
+    # Em produção, não mapeamos o código-fonte. Ele já está "assado" na imagem.
+    # Mapeamos apenas a pasta de saída.
     volumes:
-      # Mapeia o código-fonte para o contêiner. Isso permite que o nodemon
-      # (rodando no contêiner) detecte mudanças feitas na sua máquina
-      # e reinicie o script automaticamente.
+      - ./output:/usr/src/app/output
+
+  # --- SERVIÇO DE DESENVOLVIMENTO (ativado com --profile dev) ---
+  # Pesquisar mais sobre uso de profiles com compose em = https://docs.docker.com/compose/how-tos/profiles/
+  scraper-dev:
+    <<: *common-config # Reutiliza a configuração comum
+    profiles:
+      - dev
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: assectra_scraper_dev
+    # O comando padrão para o serviço de desenvolvimento.
+    # Ele fica esperando para sempre, permitindo que você use 'docker compose exec'.
+    # O '-L' no nodemon é crucial para funcionar bem com Docker.
+    command: sh -c "npm run dev"
+    volumes:
+      # Mapeia o código-fonte para hot-reloading com nodemon.
       - ./src:/usr/src/app/src
-      # Mapeia a pasta de saída para que os arquivos gerados no contêiner
-      # fiquem disponíveis na sua máquina.
+      # Mapeia a pasta de saída.
       - ./output:/usr/src/app/output

@@ -1,10 +1,11 @@
-# Use uma imagem oficial do Node.js como base. A versão 'slim' é menor.
+# Dockerfile para Ambiente de Desenvolvimento
+# Instala TODAS as dependências e prepara o ambiente para hot-reload com nodemon.
+
 FROM node:18-slim
 
-# Instala as dependências necessárias para o Puppeteer e o Chromium
-# Veja: https://pptr.dev/troubleshooting#running-puppeteer-in-docker
+# Instala as dependências de SO necessárias para o Puppeteer/Chromium rodar.
 RUN apt-get update \
-    && apt-get install -y \
+    && apt-get install -y --no-install-recommends \
     ca-certificates \
     fonts-liberation \
     libasound2 \
@@ -41,22 +42,22 @@ RUN apt-get update \
     lsb-release \
     wget \
     xdg-utils \
-    # E finalmente, instala o Chromium
     chromium \
-    # Limpa o cache do apt para manter a imagem pequena
     && rm -rf /var/lib/apt/lists/*
 
 # Define o diretório de trabalho no container
 WORKDIR /usr/src/app
 
-# Copia o package.json e o package-lock.json para aproveitar o cache do Docker
+# Copia os arquivos de definição de pacotes
 COPY package*.json ./
 
-# Instala as dependências do projeto
-RUN npm install
+# Instala TODAS as dependências (incluindo devDependencies)
+# Usamos 'npm ci' para garantir consistência com o package-lock.json
+RUN npm ci
 
-# Copia o restante do código-fonte da sua aplicação
+# Copia o restante do código-fonte. O volume no docker-compose irá sobrepor 'src',
+# mas copiar aqui é uma boa prática para garantir que a imagem possa ser construída
+# e executada de forma independente, se necessário.
 COPY . .
 
-# O comando padrão é definido no docker-compose.yml, então não precisamos de CMD/ENTRYPOINT aqui
-# para o caso de uso com 'docker compose run'.
+# O comando será fornecido pelo docker-compose

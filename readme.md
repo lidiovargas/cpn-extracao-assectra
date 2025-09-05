@@ -9,12 +9,13 @@ O projeto utiliza Docker e espera um argumento para definir qual tarefa executar
 Para rodar um script em modo de desenvolvimento, use os comandos `dev:*`. O `nodemon` irá reiniciar o script automaticamente sempre que um arquivo na pasta `src` for alterado.
 
 ```bash
-# Se tiver mudado o package.json, refaça a build manualmente
+# CONDICIONAL:
+# Se tiver mudado o package.json (ou qualquer pasta fora de src/...), refaça a build manualmente
 docker compose build
 # Exemplo para extrair perfis de colaboradores
-docker compose run --rm scraper npm run dev:employees:profiles
+docker compose run --rm scraper-dev npm run dev:employees:profiles
 # Exemplo para extrair documentos de colaboradores
-docker compose run --rm scraper npm run dev:employees:documents
+docker compose run --rm scraper-dev npm run dev:employees:documents
 ```
 
 ### Extrair Perfis de Colaboradores
