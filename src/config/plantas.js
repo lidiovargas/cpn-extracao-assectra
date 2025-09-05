@@ -1,7 +1,9 @@
 export const obrasParaExtrair = [
-  // 'BELFORT',
-  // 'CHAMONIX',
+  // ---- exportados ---
+  'BELFORT',
+  'CHAMONIX',
   'JESUINO',
-  // 'LAKE',
-  // 'MULTIUSO CAMBUI PARTICIPAÇÕES'
+  'LAKE',
+  'MULTIUSO CAMBUI PARTICIPAÇÕES',
+  // --- pendentes ---
 ];
