@@ -29,11 +29,15 @@ services:
     container_name: assectra_scraper_dev
     # O comando padrão para o serviço de desenvolvimento.
     # Ele fica esperando para sempre, permitindo que você use 'docker compose exec'.
-    # O '-L' no nodemon é crucial para funcionar bem com Docker.
-    command: sh -c "npm run dev"
+    # Usar 'tail -f /dev/null' mantém o container rodando sem executar um script,
+    # o que é ideal para executar tarefas sob demanda com 'docker compose run'.
+    command: tail -f /dev/null
     volumes:
-      # Mapeia o código-fonte para hot-reloading com nodemon.
-      - ./src:/usr/src/app/src
-      - ./config:/usr/src/app/config
-      # Mapeia a pasta de saída.
-      - ./output:/usr/src/app/output
+      # Mapeia todo o diretório do projeto para o diretório de trabalho no container.
+      # Isso garante que alterações em QUALQUER arquivo (package.json, .babelrc, src/*)
+      # sejam refletidas instantaneamente.
+      - .:/usr/src/app
+      # Esta linha é um "truque" para evitar que a pasta node_modules local
+      # (que pode não existir ou ser para outro SO) sobrescreva a pasta
+      # node_modules que foi instalada pelo `RUN npm ci` no Dockerfile.
+      - /usr/src/app/node_modules

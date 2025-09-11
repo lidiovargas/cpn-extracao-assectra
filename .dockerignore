@@ -1,11 +1,9 @@
+# Impede que a pasta node_modules local seja copiada para o contexto do build,
+# o que torna o processo de build muito mais rápido.
 node_modules
 npm-debug.log
-Dockerfile
-.dockerignore
-docker-compose.yml
-.env
+
+# Arquivos de configuração do Docker e Git não precisam estar na imagem.
+Dockerfile*
 .git
 .gitignore
-output
-dist
-config/

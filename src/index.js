@@ -2,39 +2,54 @@
 import 'dotenv/config';
 import path from 'path';
 import puppeteer from 'puppeteer-core';
-import { extrairDadosColaboradores } from './services/employeeProfileService.js';
-import { baixarDocumentosColaboradores } from './services/employeeDocumentService.js';
-import { baixarDocumentosEmpresas } from './services/companyDocumentService.js';
+// --- Serviços do Assectra ---
+import { extrairDadosColaboradores } from './services/assectra/employeeProfileService.js';
+import { baixarDocumentosColaboradores } from './services/assectra/employeeDocumentService.js';
+import { baixarDocumentosEmpresas } from './services/assectra/companyDocumentService.js';
+
+// --- Serviços do InMeta (Exemplos) ---
+// import { uploadDocumentosColaboradores } from './services/inmeta/employeeUploadService.js';
+// import { uploadDocumentosEmpresas } from './services/inmeta/companyUploadService.js';
+
 import { loadConfig } from './config/loader.js';
-import { login } from './auth/login.js';
+import { assectraLogin } from './auth/assectraLogin.js';
+import { inmetaLogin } from './auth/inmetaLogin.js';
 
 /**
  * Função principal que executa o processo de web scraping.
  */
 async function main() {
   // --- ROTEAMENTO DE TAREFA ---
-  // Mapeia os comandos para as funções de serviço correspondentes.
-  // Esta estrutura (dispatch table) facilita a adição de novas tarefas sem aumentar a complexidade do código.
+  // O mapa de tarefas agora é aninhado por sistema (assectra, inmeta), entidade e tarefa.
   const taskMap = {
-    employees: {
-      profiles: extrairDadosColaboradores,
-      documents: baixarDocumentosColaboradores,
+    assectra: {
+      employees: {
+        profiles: extrairDadosColaboradores,
+        documents: baixarDocumentosColaboradores,
+      },
+      companies: {
+        profiles: async () =>
+          console.log('(NÃO IMPLEMENTADO) Chamaria o serviço para "profiles" de "companies" aqui.'),
+        documents: baixarDocumentosEmpresas,
+      },
     },
-    companies: {
-      profiles: async () =>
-        console.log('(NÃO IMPLEMENTADO) Chamaria o serviço para "profiles" de "companies" aqui.'),
-      documents: baixarDocumentosEmpresas,
+    inmeta: {
+      employees: {
+        // Exemplo: a função viria de 'src/services/inmeta/documentUploadService.js'
+        upload: async () =>
+          console.log('Lógica de upload de documentos de colaboradores para o InMeta aqui.'),
+      },
+      companies: {
+        upload: async () => console.log('Lógica de upload de documentos de empresas para o InMeta aqui.'),
+      },
     },
   };
 
   const command = process.argv[2];
   if (!command || !command.includes(':')) {
     console.error('ERRO: Nenhuma tarefa especificada.');
-    console.error('Uso: node src/index.js <entidade>:<tarefa>');
-    const validCommands = Object.keys(taskMap)
-      .flatMap((e) => Object.keys(taskMap[e]).map((t) => `${e}:${t}`))
-      .join(', ');
-    console.error(`  Exemplos: ${validCommands}`);
+    console.error('Uso: node src/index.js <sistema>:<entidade>:<tarefa>');
+    console.error('  Exemplos: assectra:employees:profiles, inmeta:employees:upload');
     process.exit(1);
   }
 
@@ -58,25 +73,18 @@ async function main() {
     console.log(`Iniciando a partir da página: ${options.startPage}`);
   }
 
-  const [entity, task] = command.split(':');
-  const taskFunction = taskMap[entity]?.[task];
+  const [system, entity, task] = command.split(':');
+  const taskFunction = taskMap[system]?.[entity]?.[task];
 
   if (!taskFunction) {
     console.error(`ERRO: Tarefa ou entidade inválida: "${command}".`);
-    const validCommands = Object.keys(taskMap)
-      .flatMap((e) => Object.keys(taskMap[e]).map((t) => `${e}:${t}`))
-      .join(', ');
-    console.error(`  Comandos válidos: ${validCommands}`);
+    console.error('Uso: node src/index.js <sistema>:<entidade>:<tarefa>');
+    console.error(
+      '  Exemplos de comandos válidos: assectra:employees:documents, assectra:companies:documents, inmeta:employees:upload'
+    );
     process.exit(1);
   }
-  console.log(`Executando a tarefa: ${entity}:${task}`);
-
-  // --- VERIFICAÇÃO DE VARIÁVEIS DE AMBIENTE ---
-  if (!process.env.WEBSITE_USER || !process.env.WEBSITE_PASSWORD) {
-    console.error('ERRO: As variáveis de ambiente WEBSITE_USER e WEBSITE_PASSWORD não estão definidas.');
-    console.error('Por favor, crie um arquivo .env na raiz do projeto e defina essas variáveis.');
-    process.exit(1); // Encerra a aplicação com código de erro
-  }
+  console.log(`Executando a tarefa: ${system}:${entity}:${task}`);
 
   console.log('Iniciando o navegador...');
   const browser = await puppeteer.launch({
@@ -102,8 +110,13 @@ async function main() {
 
   try {
     // --- ETAPA DE LOGIN ---
-    // A lógica de login foi abstraída para o módulo de autenticação
-    await login(page);
+    // A lógica de login agora é selecionada com base no sistema alvo.
+    if (system === 'assectra') {
+      await assectraLogin(page);
+    } else if (system === 'inmeta') {
+      // A função de login do InMeta seria chamada aqui.
+      await inmetaLogin(page);
+    }
 
     // --- ETAPA DE EXTRAÇÃO DE DADOS ---
     // Executa a tarefa selecionada a partir do mapa, passando os argumentos necessários.

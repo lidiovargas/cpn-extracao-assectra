@@ -1,6 +1,6 @@
-import { salvarDadosJSON, salvarComoExcel, baixarImagem } from '../utils/fileUtils.js';
-import { toTitleCase } from '../utils/formatter.js';
-import { setupLogger, closeLogger } from '../utils/logger.js';
+import { salvarDadosJSON, salvarComoExcel, baixarImagem } from '../../utils/fileUtils.js';
+import { toTitleCase } from '../../utils/formatter.js';
+import { setupLogger, closeLogger } from '../../utils/logger.js';
 import fs from 'fs';
 import path from 'path';
 

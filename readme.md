@@ -1,6 +1,6 @@
 # Extração Assectra
 
-## Como Executar
+## Como Executar as Tarefas
 
 O projeto utiliza Docker e espera um argumento para definir qual tarefa executar, no formato `<entidade>:<tarefa>`.
 
@@ -12,14 +12,18 @@ Para rodar um script em modo de desenvolvimento, use os comandos `dev:*`. O `nod
 # CONDICIONAL:
 # Se tiver mudado o package.json (ou qualquer pasta fora de src/...), refaça a build manualmente
 docker compose build
-# Exemplo para extrair perfis de colaboradores
-docker compose run --rm scraper-dev npm run dev:employees:profiles
-# Exemplo para extrair documentos de colaboradores
-docker compose run --rm scraper-dev npm run dev:employees:documents
-docker compose run --rm scraper-dev npm run dev:employees:documents -- --start-page=6
-docker compose run --rm scraper-dev npm run dev:employees:documents -- --start-page=6 --end-page=10
-# TODO: Exemplo para extrair documentos de empresas
-docker compose run --rm scraper-dev npm run dev:companies:documents
+# Exemplo para extrair perfis de colaboradores do Assectra
+docker compose run --rm scraper-dev npm run dev:assectra:employees:profiles
+# Exemplo para extrair documentos de colaboradores do Assectra
+docker compose run --rm scraper-dev npm run dev:assectra:employees:documents
+docker compose run --rm scraper-dev npm run dev:assectra:employees:documents -- --start-page=6
+docker compose run --rm scraper-dev npm run dev:assectra:employees:documents -- --start-page=6 --end-page=10
+# Exemplo para extrair documentos de empresas do Assectra
+docker compose run --rm scraper-dev npm run dev:assectra:companies:documents
+
+# Exemplo para fazer upload de documentos para o InMeta (quando implementado)
+docker compose run --rm scraper-dev npm run dev:inmeta:employees:upload
+docker compose run --rm scraper-dev npm run dev:inmeta:companies:upload
 ```
 
 ### Modo de produção
@@ -27,14 +31,14 @@ docker compose run --rm scraper-dev npm run dev:companies:documents
 ```bash
 docker compose build
 # Exemplo para extrair perfis de colaboradores
-docker compose run --rm scraper npm run employees:profiles
+docker compose run --rm scraper npm run assectra:employees:profiles
 # Exemplo para extrair documentos de colaboradores
-docker compose run --rm scraper npm run employees:documents
-docker compose run --rm scraper npm run employees:documents -- --start-page=6
-docker compose run --rm scraper npm run employees:documents -- --empresas-file=config/clientes_especiais.js
-docker compose run --rm scraper npm run employees:documents -- --obras-file=config/obras_especiais.js
+docker compose run --rm scraper npm run assectra:employees:documents
+docker compose run --rm scraper npm run assectra:employees:documents -- --start-page=6
+docker compose run --rm scraper npm run assectra:employees:documents -- --empresas-file=config/clientes_especiais.js
+docker compose run --rm scraper npm run assectra:employees:documents -- --obras-file=config/obras_especiais.js
 # TODO: Exemplo para extrair documentos de empresas
-docker compose run --rm scraper npm run companies:documents
+docker compose run --rm scraper npm run assectra:companies:documents
 ```
 
 # Configuração de empresas e obras
@@ -81,6 +85,10 @@ module.exports = [
   // ...
 ];
 ```
+
+## Copie o projeto para o servidor
+
+    rsync -avzh --progress luna.cpn.com.br:/opt/extracao-assectra ./output/luna
 
 # Como Depurar Scripts do Puppeteer (Headless)
 
